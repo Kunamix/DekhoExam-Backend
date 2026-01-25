@@ -901,9 +901,7 @@ export const getPopularTests = asyncHandler(
         totalQuestions: true,
         durationMinutes: true,
         isPaid: true,
-        category: {
-          select: { name: true },
-        },
+        category: true,
       },
     });
 
