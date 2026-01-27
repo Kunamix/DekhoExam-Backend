@@ -218,7 +218,6 @@ export class TestAttemptService {
           },
         },
         answers: {
-          orderBy: { question: { id: "asc" } },
           include: {
             question: {
               select: {
@@ -233,7 +232,6 @@ export class TestAttemptService {
                 explanation: true,
                 explanationImageUrl: true,
                 difficultyLevel: true,
-                topicId: true,
               },
             },
           },
@@ -259,13 +257,36 @@ export class TestAttemptService {
       );
     }
 
-    // 1️⃣ Format questions
-    const formattedSolutions = attempt.answers.map((ans) => {
-      const q = ans.question;
+    // 1️⃣ Fetch ALL questions of this attempt
+    const questionIds = attempt.questionIds as string[];
+
+    const allQuestions = await prisma.question.findMany({
+      where: { id: { in: questionIds } },
+      select: {
+        id: true,
+        questionText: true,
+        questionImageUrl: true,
+        option1: true,
+        option2: true,
+        option3: true,
+        option4: true,
+        correctOption: true,
+        explanation: true,
+        explanationImageUrl: true,
+        difficultyLevel: true,
+      },
+    });
+
+    // 2️⃣ Map answers by questionId
+    const answerMap = new Map(attempt.answers.map((a) => [a.questionId, a]));
+
+    // 3️⃣ Build unified question list (ATTEMPTED + SKIPPED)
+    const questions = allQuestions.map((q) => {
+      const ans = answerMap.get(q.id);
 
       let status: "CORRECT" | "INCORRECT" | "SKIPPED" = "SKIPPED";
 
-      if (ans.selectedOption !== null) {
+      if (ans) {
         status =
           ans.selectedOption === q.correctOption ? "CORRECT" : "INCORRECT";
       }
@@ -273,48 +294,49 @@ export class TestAttemptService {
       return {
         id: q.id,
         questionText: q.questionText,
-        questionImage: q.questionImageUrl,
+        difficulty: q.difficultyLevel,
         options: [q.option1, q.option2, q.option3, q.option4],
-        userSelectedOption: ans.selectedOption,
         correctOption: q.correctOption,
+        userSelectedOption: ans?.selectedOption ?? null,
+        status,
+        marks: ans?.marksObtained ?? 0,
+        timeSpent: ans?.timeSpent ?? 0,
         explanation: q.explanation,
         explanationImage: q.explanationImageUrl,
-        status,
-        marks: ans.marksObtained,
-        timeSpent: ans.timeSpent,
-        difficulty: q.difficultyLevel,
+        questionImage: q.questionImageUrl,
       };
     });
 
-    // 2️⃣ Summary calculations (SAFE & CORRECT)
+    // 4️⃣ Summary
     const totalQuestions = attempt.totalQuestions;
-    const attemptedCount = attempt.attemptedCount;
-    const skippedCount = totalQuestions - attemptedCount;
+    const attempted = attempt.attemptedCount;
+    const skippedCount = totalQuestions - attempted;
 
     const summary = {
-      testName: attempt.test.name,
-      totalScore: attempt.totalMarks,
-      maxScore: totalQuestions * Number(attempt.test.positiveMarks),
-
+      totalQuestions,
+      attempted,
       correctCount: attempt.correctCount,
       incorrectCount: attempt.incorrectCount,
-      skippedCount, // ✅ NEW FIELD
-
+      skippedCount,
       accuracy:
-        attemptedCount > 0
-          ? Math.round((attempt.correctCount / attemptedCount) * 100)
+        attempted > 0
+          ? Math.round((attempt.correctCount / attempted) * 100)
           : 0,
-
-      timeTakenSeconds: Math.floor(
-        (new Date(attempt.submittedAt!).getTime() -
-          new Date(attempt.startedAt).getTime()) /
-          1000,
-      ),
+      totalScore: attempt.totalMarks,
     };
 
     return {
+      test: {
+        name: attempt.test.name,
+        timeTakenSeconds: Math.floor(
+          (new Date(attempt.submittedAt!).getTime() -
+            new Date(attempt.startedAt).getTime()) /
+            1000,
+        ),
+        maxScore: totalQuestions * Number(attempt.test.positiveMarks),
+      },
       summary,
-      questions: formattedSolutions,
+      questions,
     };
   }
 
