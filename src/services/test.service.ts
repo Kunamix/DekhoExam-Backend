@@ -635,6 +635,7 @@ export class TestService {
       throw new ApiError(400, "User ID and Test ID are required");
     }
 
+    // 1️⃣ Fetch test & user
     const [test, user] = await Promise.all([
       prisma.test.findUnique({ where: { id: testId } }),
       prisma.user.findUnique({ where: { id: userId } }),
@@ -643,31 +644,56 @@ export class TestService {
     if (!test) throw new ApiError(404, "Test not found");
     if (!user) throw new ApiError(404, "User not found");
 
+    // 2️⃣ Block multiple active attempts (VERY IMPORTANT)
+    const activeAttempt = await prisma.testAttempt.findFirst({
+      where: {
+        userId,
+        testId,
+        status: "IN_PROGRESS",
+      },
+    });
+
+    if (activeAttempt) {
+      throw new ApiError(
+        409,
+        "You already have an active attempt for this test",
+      );
+    }
+
+    // 3️⃣ Determine next attempt number
+    const lastAttempt = await prisma.testAttempt.findFirst({
+      where: { userId, testId },
+      orderBy: { attemptNumber: "desc" },
+      select: { attemptNumber: true },
+    });
+
+    const nextAttemptNumber = lastAttempt ? lastAttempt.attemptNumber + 1 : 1;
+
+    // 4️⃣ Access control (SUBSCRIPTION > FREE)
     let consumeFreeAttempt = false;
 
-    // 🔐 Access control for paid tests
     if (test.isPaid) {
       const FREE_LIMIT = 2;
 
-      if (user.freeTestsUsed < FREE_LIMIT) {
-        consumeFreeAttempt = true;
-      } else {
-        const activeSubscription = await prisma.userSubscription.findFirst({
-          where: {
-            userId,
-            isActive: true,
-            endDate: { gt: new Date() },
-            OR: [
-              { type: SubscriptionType.ALL_CATEGORIES },
-              {
-                type: SubscriptionType.CATEGORY_SPECIFIC,
-                categoryId: test.categoryId,
-              },
-            ],
-          },
-        });
+      const activeSubscription = await prisma.userSubscription.findFirst({
+        where: {
+          userId,
+          isActive: true,
+          endDate: { gt: new Date() },
+          OR: [
+            { type: SubscriptionType.ALL_CATEGORIES },
+            {
+              type: SubscriptionType.CATEGORY_SPECIFIC,
+              categoryId: test.categoryId,
+            },
+          ],
+        },
+      });
 
-        if (!activeSubscription) {
+      if (!activeSubscription) {
+        if (user.freeTestsUsed < FREE_LIMIT) {
+          consumeFreeAttempt = true;
+        } else {
           throw new ApiError(
             403,
             "You have used your free attempts. Please purchase a subscription.",
@@ -676,7 +702,7 @@ export class TestService {
       }
     }
 
-    // 🧠 Question selection
+    // 5️⃣ Question selection
     let selectedQuestions: any[] = [];
 
     // CASE 1️⃣ Pre-selected questions
@@ -687,7 +713,7 @@ export class TestService {
       const questionIds = test.preSelectedQuestionIds as string[];
 
       const questions = await prisma.question.findMany({
-        where: { id: { in: questionIds } },
+        where: { id: { in: questionIds }, isActive: true },
         select: {
           id: true,
           questionText: true,
@@ -699,9 +725,16 @@ export class TestService {
         },
       });
 
-      selectedQuestions = questionIds
-        .map((id) => questions.find((q) => q.id === id))
-        .filter(Boolean);
+      if (questions.length !== questionIds.length) {
+        throw new ApiError(
+          500,
+          "Some pre-selected questions are missing or inactive",
+        );
+      }
+
+      selectedQuestions = questionIds.map(
+        (id) => questions.find((q) => q.id === id)!,
+      );
     }
 
     // CASE 2️⃣ Subject-specific test
@@ -718,8 +751,12 @@ export class TestService {
         select: { id: true },
       });
 
-      const shuffled = allQuestionIds.sort(() => 0.5 - Math.random());
-      const selectedIds = shuffled
+      if (allQuestionIds.length < test.totalQuestions) {
+        throw new ApiError(500, "Not enough questions available for this test");
+      }
+
+      const selectedIds = allQuestionIds
+        .sort(() => Math.random() - 0.5)
         .slice(0, test.totalQuestions)
         .map((q) => q.id);
 
@@ -756,8 +793,15 @@ export class TestService {
           select: { id: true },
         });
 
-        const shuffled = allQuestionIds.sort(() => 0.5 - Math.random());
-        const selectedIds = shuffled
+        if (allQuestionIds.length < item.questionsPerTest) {
+          throw new ApiError(
+            500,
+            `Not enough questions for subject ${item.subject.id}`,
+          );
+        }
+
+        const selectedIds = allQuestionIds
+          .sort(() => Math.random() - 0.5)
           .slice(0, item.questionsPerTest)
           .map((q) => q.id);
 
@@ -778,13 +822,13 @@ export class TestService {
       }
     }
 
-    // 🔒 Transaction: attempt + free usage
+    // 6️⃣ Transaction: create attempt + consume free test
     const attempt = await prisma.$transaction(async (tx) => {
-      const attempt = await tx.testAttempt.create({
+      const createdAttempt = await tx.testAttempt.create({
         data: {
           userId,
           testId,
-          attemptNumber: 1,
+          attemptNumber: nextAttemptNumber,
           totalQuestions: selectedQuestions.length,
           questionIds: selectedQuestions.map((q) => q.id),
           questionSetSeed: Date.now().toString(),
@@ -799,11 +843,13 @@ export class TestService {
         });
       }
 
-      return attempt;
+      return createdAttempt;
     });
 
+    // 7️⃣ Response
     return {
       attemptId: attempt.id,
+      attemptNumber: attempt.attemptNumber,
       duration: test.durationMinutes,
       questions: selectedQuestions,
       isFreeAttempt: consumeFreeAttempt,
