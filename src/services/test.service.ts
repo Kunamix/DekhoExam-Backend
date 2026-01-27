@@ -540,9 +540,7 @@ export class TestService {
         totalQuestions: true,
         durationMinutes: true,
         isPaid: true,
-        category: {
-          select: { name: true },
-        },
+        category: true,
       },
     });
 
