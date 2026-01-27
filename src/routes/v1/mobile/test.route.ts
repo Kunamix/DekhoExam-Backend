@@ -6,10 +6,10 @@ import { Router } from "express";
 const router = Router();
 
 // Browse tests
-router.get("/category/:categoryId", verifyToken, getTestsByCategory);
 router.get("/popular", verifyToken, getPopularTests);
-router.get("/:testId", verifyToken, getTestById);
+router.get("/category/:categoryId", verifyToken, getTestsByCategory);
 router.get("/:testId/instructions", verifyToken, getTestInstructions);
+router.get("/:testId", verifyToken, getTestById);
 
 // Test attempts
 router.post("/:testId/start", verifyToken, startTest);

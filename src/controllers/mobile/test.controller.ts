@@ -62,13 +62,13 @@ export const getTestInstructions = asyncHandler(
 export const startTest = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?.id;
-    const { testId } = req.body;
+    const { testId } = req.params;
 
     if (!userId) {
       throw new ApiError(401, "Unauthorized request");
     }
 
-    const result = await testService.startTest(userId, testId);
+    const result = await testService.startTest(userId, testId.toString());
 
     return res.status(201).json(
       new ApiResponse(201, result, "Test started successfully")

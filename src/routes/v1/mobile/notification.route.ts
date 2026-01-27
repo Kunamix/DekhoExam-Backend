@@ -5,8 +5,8 @@ import { deleteNotification, getNotifications, markAllAsRead, markAsRead } from 
 const router = Router();
 
 router.get("/", verifyToken, getNotifications);
-router.patch("/:id/read", verifyToken, markAsRead);
 router.patch("/read-all", verifyToken, markAllAsRead);
+router.patch("/:id/read", verifyToken, markAsRead);
 router.delete("/:id", verifyToken, deleteNotification);
 
 export default router;

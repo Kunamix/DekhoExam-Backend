@@ -4,8 +4,8 @@ import { Router } from "express";
 
 const router = Router();
 
-router.put("/", verifyToken, updateProfile);
 router.put("/password", verifyToken, updatePassword);
+router.put("/", verifyToken, updateProfile);
 // router.post("/avatar", verifyToken, upload.single("avatar"), uploadAvatar);
 // router.delete("/", verifyToken, deleteAccount);
 
