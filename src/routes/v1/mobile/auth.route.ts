@@ -5,7 +5,7 @@ import { getMe, login, logout, verifyOTP } from "@/controllers/mobile/auth.contr
 const router = Router();
 
 router.post("/login", login);
-router.post("/verify-otp", verifyToken, verifyOTP);
+router.post("/verify-otp", verifyOTP);
 router.post("/logout", verifyToken, logout);
 router.get("/me", verifyToken, getMe);
 
