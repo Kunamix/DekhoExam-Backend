@@ -22,7 +22,7 @@ export const getAllCategories = asyncHandler(
 export const getCategoryById = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-
+    
     const category = await categoryService.getCategoryById(id.toString());
 
     return res
@@ -33,7 +33,7 @@ export const getCategoryById = asyncHandler(
 
 export const checkCategoryAccess = asyncHandler(
   async (req: Request, res: Response) => {
-    const { categoryId } = req.params;
+    const { id } = req.params;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -42,7 +42,7 @@ export const checkCategoryAccess = asyncHandler(
 
     const result = await categoryService.checkCategoryAccess(
       userId,
-      categoryId.toString()
+      id.toString()
     );
 
     return res

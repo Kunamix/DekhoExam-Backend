@@ -172,6 +172,9 @@ export class CategoryService {
   }
 
   async getCategoryById(categoryId: string) {
+    if(!categoryId){
+      throw new ApiError(401,"Please provide categoryId")
+    }
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
       include: {
