@@ -1,4 +1,4 @@
-import { myEnvironment } from "@/configs/env";
+import { myEnvironment } from "@/configs/env.config";
 import logger from "@/logger/winston.logger";
 import morgan from "morgan";
 
@@ -13,7 +13,7 @@ const skip = () => {
 
 const morganMiddleware = morgan(
   ":remote-addr :method :url :status - :response-time ms",
-  { stream, skip }
+  { stream, skip },
 );
 
 export default morganMiddleware;

@@ -1,28 +1,28 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { MulterError } from "multer";
-import { ApiError } from "@/utils/ApiError";
+import { ApiError } from "@/utils/api-error.util";
 import logger from "@/logger/winston.logger";
-import { ApiResponse } from "@/utils/ApiResponse";
-import { myEnvironment } from "@/configs/env";
+import { ApiResponse } from "@/utils/api-response.util";
+import { myEnvironment } from "@/configs/env.config";
 
 export const notFoundHandler = (
   request: Request,
   _response: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const error = new ApiError(
     404,
-    `Route not found : ${request.method} ${request.originalUrl}`
+    `Route not found : ${request.method} ${request.originalUrl}`,
   );
   return next(error);
 };
 
 export const errorHandler = (
   err: any,
-  req: Request,
+  _req: Request,
   res: Response,
-  _next: NextFunction
+  _next: NextFunction,
 ) => {
   let error = err;
 
@@ -32,7 +32,7 @@ export const errorHandler = (
     error = new ApiError(403, err.issues[0].message);
   } else if (err instanceof MulterError) {
     error = new ApiError(400, err.message);
-  }  else if (err instanceof Error) {
+  } else if (err instanceof Error) {
     error = new ApiError(500, err.message);
   } else {
     error = new ApiError(500, "Unknown error occurred");
@@ -44,7 +44,7 @@ export const errorHandler = (
   ) {
     error = new ApiError(
       401,
-      `Unauthorized | ${error.name === "TokenExpiredError" ? "Token expired" : "Invalid token"}`
+      `Unauthorized | ${error.name === "TokenExpiredError" ? "Token expired" : "Invalid token"}`,
     );
   }
 
@@ -56,13 +56,12 @@ export const errorHandler = (
     error = new ApiError(400, error.message);
   }
 
-
   logger.error(`[${error.statusCode}] ${error.message}`);
 
   const apiResponse = new ApiResponse<null>(
     error.statusCode,
     null,
-    error.message
+    error.message,
   );
 
   if (myEnvironment.NODE_ENV === "development" && error.stack) {

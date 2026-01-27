@@ -1,48 +1,59 @@
-import express from "express";
+import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
 import cookieParser from "cookie-parser";
+import routes from "./routes";
 import morganMiddleware from "./logger/morgan.logger";
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware";
+import { handleRazorpayWebhook } from "./controllers/webhook/razorpay.controller";
 
+const app: Application = express();
 
-const app = express();
-
+// Security middlewares
+app.use(helmet());
 app.use(
   cors({
     origin: ["http://localhost:5173", "https://dekhoexam.netlify.app"],
     optionsSuccessStatus: 200,
     credentials: true,
     maxAge: 86400,
-  })
-)
-
-app.use(express.json({limit: "8mb"}));
-app.use(express.urlencoded({extended: true,limit: "8mb"}));
-app.use(express.static("public"));
-app.use(cookieParser());
-app.use(morganMiddleware);
+  }),
+);
 app.disable("x-powered-by");
 
+// Rate limiting
+// app.use("/api", rateLimiter);
 
-// Api Routes
-import healthRouter from "@/routes/healthcheck.route";
-import adminRouter from "@/routes/admin.auth.route";
-import authRouter from "@/routes/auth.route";
-import categoryRouter from "@/routes/category.route"
-import dashboardRouter from "@/routes/dashboard.route"
-import paymentRouter from "@/routes/payment.route"
-import questionRouter from "@/routes/question.route";
-import subjectRouter from "@/routes/subject.route";
-import subscriptionRouter from "@/routes/subscription.route"
-import testRouter from "@/routes/test.route"
-import topicRouter from "@/routes/topic.route"
-import userRouter from "@/routes/user.route";
+// webhook
+app.post("/webhook/razorpay", express.raw({ type: "application/json" }), handleRazorpayWebhook);
 
-app.use("/api/v1/health-check",healthRouter);
+// Body parsers && cookie
+app.use(express.json({ limit: "8mb" }));
+app.use(express.urlencoded({ extended: true, limit: "8mb" }));
+app.use(cookieParser());
 
-app.use("/api/v1",adminRouter,authRouter,categoryRouter,dashboardRouter,paymentRouter,questionRouter,subjectRouter,subscriptionRouter,testRouter,topicRouter,userRouter);
+// Compression && Logging
+app.use(compression());
+app.use(morganMiddleware);
 
+// Static files
+app.use(express.static("public"));
 
+// Health check
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
+// API Routes
+app.use("/api", routes);
+
+// Error handler (must be last)
 app.use(notFoundHandler);
 app.use(errorHandler);
+
 export default app;

@@ -1,4 +1,4 @@
-import { myEnvironment } from "../configs/env.js";
+import { myEnvironment } from "../configs/env.config.js";
 import winston from "winston";
 
 const levels = {
@@ -29,8 +29,8 @@ const format = winston.format.combine(
   winston.format.timestamp({ format: "DD MMM, YYYY - HH:mm:ss:ms" }),
   winston.format.colorize({ all: true }),
   winston.format.printf(
-    (info) => `[${info.timestamp} ${info.level}: ${info.message}]`
-  )
+    (info) => `[${info.timestamp} ${info.level}: ${info.message}]`,
+  ),
 );
 
 const transports = [
