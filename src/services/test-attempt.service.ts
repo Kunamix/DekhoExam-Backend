@@ -31,7 +31,7 @@ export class TestAttemptService {
     const expiryTime = new Date(startTime.getTime() + durationMs);
 
     let timeLeftSeconds = Math.floor(
-      (expiryTime.getTime() - now.getTime()) / 1000
+      (expiryTime.getTime() - now.getTime()) / 1000,
     );
     if (timeLeftSeconds < 0) timeLeftSeconds = 0;
 
@@ -105,7 +105,7 @@ export class TestAttemptService {
         },
       });
     }
-  } 
+  }
 
   async submitTest(attemptId: string) {
     const attempt = await prisma.testAttempt.findUnique({
@@ -124,8 +124,7 @@ export class TestAttemptService {
 
     let correct = 0;
     let incorrect = 0;
-    let unattempted =
-      attempt.totalQuestions - userAnswers.length;
+    let unattempted = attempt.totalQuestions - userAnswers.length;
 
     const posMarks = Number(attempt.test.positiveMarks);
     const negMarks = Number(attempt.test.negativeMarks);
@@ -136,8 +135,7 @@ export class TestAttemptService {
         continue;
       }
 
-      const isCorrect =
-        ans.selectedOption === ans.question.correctOption;
+      const isCorrect = ans.selectedOption === ans.question.correctOption;
 
       await prisma.testAttemptAnswer.update({
         where: { id: ans.id },
@@ -151,13 +149,9 @@ export class TestAttemptService {
       else incorrect++;
     }
 
-    const totalMarks =
-      correct * posMarks - incorrect * negMarks;
+    const totalMarks = correct * posMarks - incorrect * negMarks;
 
-    const percentage =
-      (totalMarks /
-        (attempt.totalQuestions * posMarks)) *
-      100;
+    const percentage = (totalMarks / (attempt.totalQuestions * posMarks)) * 100;
 
     await prisma.testAttempt.update({
       where: { id: attemptId },
@@ -197,20 +191,14 @@ export class TestAttemptService {
       testName: attempt.test.name,
       score: Number(attempt.totalMarks),
       totalScore:
-        attempt.test.totalQuestions *
-        Number(attempt.test.positiveMarks),
+        attempt.test.totalQuestions * Number(attempt.test.positiveMarks),
       percentage: Number(attempt.percentage),
       correct: attempt.correctCount,
       incorrect: attempt.incorrectCount,
-      unattempted:
-        attempt.totalQuestions - attempt.attemptedCount,
+      unattempted: attempt.totalQuestions - attempt.attemptedCount,
       accuracy:
         attempt.attemptedCount > 0
-          ? (
-              (attempt.correctCount /
-                attempt.attemptedCount) *
-              100
-            ).toFixed(1)
+          ? ((attempt.correctCount / attempt.attemptedCount) * 100).toFixed(1)
           : 0,
       timeTaken: "25m 30s",
     };
@@ -225,7 +213,6 @@ export class TestAttemptService {
         test: {
           select: {
             name: true,
-            totalQuestions: true,
             positiveMarks: true,
             negativeMarks: true,
           },
@@ -258,41 +245,36 @@ export class TestAttemptService {
       throw new ApiError(404, "Test attempt not found");
     }
 
-    if (attempt.userId.toString() !== currentUserId.toString()) {
+    if (attempt.userId !== currentUserId) {
       throw new ApiError(
         403,
-        "You do not have permission to view this solution"
+        "You do not have permission to view this solution",
       );
     }
 
     if (attempt.status !== "SUBMITTED") {
       throw new ApiError(
         400,
-        "Test is still in progress. Submit it to view solutions"
+        "Test is still in progress. Submit it to view solutions",
       );
     }
 
+    // 1️⃣ Format questions
     const formattedSolutions = attempt.answers.map((ans) => {
       const q = ans.question;
-      let status = "UNATTEMPTED";
+
+      let status: "CORRECT" | "INCORRECT" | "SKIPPED" = "SKIPPED";
 
       if (ans.selectedOption !== null) {
         status =
-          ans.selectedOption === q.correctOption
-            ? "CORRECT"
-            : "INCORRECT";
+          ans.selectedOption === q.correctOption ? "CORRECT" : "INCORRECT";
       }
 
       return {
         id: q.id,
         questionText: q.questionText,
         questionImage: q.questionImageUrl,
-        options: [
-          q.option1,
-          q.option2,
-          q.option3,
-          q.option4,
-        ],
+        options: [q.option1, q.option2, q.option3, q.option4],
         userSelectedOption: ans.selectedOption,
         correctOption: q.correctOption,
         explanation: q.explanation,
@@ -304,30 +286,30 @@ export class TestAttemptService {
       };
     });
 
+    // 2️⃣ Summary calculations (SAFE & CORRECT)
+    const totalQuestions = attempt.totalQuestions;
+    const attemptedCount = attempt.attemptedCount;
+    const skippedCount = totalQuestions - attemptedCount;
+
     const summary = {
       testName: attempt.test.name,
       totalScore: attempt.totalMarks,
-      maxScore:
-        attempt.test.totalQuestions *
-        Number(attempt.test.positiveMarks),
+      maxScore: totalQuestions * Number(attempt.test.positiveMarks),
+
+      correctCount: attempt.correctCount,
+      incorrectCount: attempt.incorrectCount,
+      skippedCount, // ✅ NEW FIELD
+
       accuracy:
-        attempt.attemptedCount > 0
-          ? Math.round(
-              (attempt.correctCount /
-                attempt.attemptedCount) *
-                100
-            )
+        attemptedCount > 0
+          ? Math.round((attempt.correctCount / attemptedCount) * 100)
           : 0,
+
       timeTakenSeconds: Math.floor(
         (new Date(attempt.submittedAt!).getTime() -
           new Date(attempt.startedAt).getTime()) /
-          1000
+          1000,
       ),
-      correctCount: attempt.correctCount,
-      incorrectCount: attempt.incorrectCount,
-      unattemptedCount:
-        attempt.test.totalQuestions -
-        attempt.attemptedCount,
     };
 
     return {
@@ -361,9 +343,7 @@ export class TestAttemptService {
       submittedAt: a.submittedAt,
       accuracy:
         a.attemptedCount > 0
-          ? Math.round(
-              (a.correctCount / a.attemptedCount) * 100
-            )
+          ? Math.round((a.correctCount / a.attemptedCount) * 100)
           : 0,
     }));
   }
