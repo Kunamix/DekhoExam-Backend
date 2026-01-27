@@ -6,8 +6,8 @@ import { checkCategoryAccess, getAllCategories, getCategoryById } from "@/contro
 const router = Router();
 
 router.get("/", verifyToken, getAllCategories);
-router.get("/:id", verifyToken, getCategoryById);
 router.get("/:id/check-access", verifyToken, checkCategoryAccess);
+router.get("/:id", verifyToken, getCategoryById);
 // router.get("/:id/subjects", verifyToken, getCategorySubjects);
 
 export default router;
