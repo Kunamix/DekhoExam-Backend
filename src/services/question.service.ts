@@ -1,16 +1,23 @@
 import { prisma } from "@/configs";
 import { DifficultyLevel } from "@/generated/prisma/enums";
 import { ApiError } from "@/utils";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import csv from "csv-parser";
 import { Readable } from "stream";
-
-const MAX_IMAGE_SIZE_MB = 5;
+import * as XLSX from "xlsx";
+import {
+  uploadImageFromPath,
+  extractPublicIdFromUrl,
+  deleteImage,
+  deleteLocalFile,
+} from "@/configs/cloudinary.config";
 
 interface CreateQuestionInput {
   userId: string;
   topicId: string;
   questionText: string;
   questionImageUrl?: string;
+  questionImagePath?: string; // Local file path from multer
   option1: string;
   option2: string;
   option3: string;
@@ -18,6 +25,7 @@ interface CreateQuestionInput {
   correctOption: number;
   explanation?: string;
   explanationImageUrl?: string;
+  explanationImagePath?: string; // Local file path from multer
   difficultyLevel?: DifficultyLevel;
 }
 
@@ -34,6 +42,7 @@ interface GetAllQuestionsInput {
 interface UpdateQuestionInput {
   questionText?: string;
   questionImageUrl?: string;
+  questionImagePath?: string; // Local file path from multer
   option1?: string;
   option2?: string;
   option3?: string;
@@ -41,6 +50,7 @@ interface UpdateQuestionInput {
   correctOption?: number;
   explanation?: string;
   explanationImageUrl?: string;
+  explanationImagePath?: string; // Local file path from multer
   difficultyLevel?: DifficultyLevel;
   isActive?: boolean;
 }
@@ -55,20 +65,6 @@ interface GetQuestionStatsInput {
   topicId?: string;
   subjectId?: string;
 }
-
-const validateBase64Image = (base64?: string) => {
-  if (!base64) return;
-
-  const sizeInBytes =
-    (base64.length * 3) / 4 -
-    (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
-
-  const sizeInMB = sizeInBytes / (1024 * 1024);
-
-  if (sizeInMB > MAX_IMAGE_SIZE_MB) {
-    throw new ApiError(400, "Image size must be less than 5MB");
-  }
-};
 
 const mapCorrectAnswer = (value: string) => {
   if (!value) return null;
@@ -86,32 +82,89 @@ const mapCorrectAnswer = (value: string) => {
 export class QuestionService {
   async createQuestion(data: CreateQuestionInput) {
     if (![1, 2, 3, 4].includes(Number(data.correctOption))) {
-      throw new ApiError(400, "Correct option must be between 1 and 4");
+      // Clean up uploaded files if validation fails
+      if (data.questionImagePath) deleteLocalFile(data.questionImagePath);
+      if (data.explanationImagePath) deleteLocalFile(data.explanationImagePath);
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CORRECT_OPTION_INVALID,
+      );
     }
-
-    validateBase64Image(data.questionImageUrl);
-    validateBase64Image(data.explanationImageUrl);
 
     const topic = await prisma.topic.findUnique({
       where: { id: data.topicId },
     });
 
     if (!topic) {
-      throw new ApiError(404, "Topic not found");
+      // Clean up uploaded files if topic not found
+      if (data.questionImagePath) deleteLocalFile(data.questionImagePath);
+      if (data.explanationImagePath) deleteLocalFile(data.explanationImagePath);
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TOPIC_NOT_FOUND);
+    }
+
+    let cloudinaryQuestionImageUrl = data.questionImageUrl;
+    let cloudinaryExplanationImageUrl = data.explanationImageUrl;
+
+    // Upload question image to Cloudinary if provided
+    if (data.questionImagePath) {
+      try {
+        const uploadResult = await uploadImageFromPath(
+          data.questionImagePath,
+          "questions",
+        );
+        cloudinaryQuestionImageUrl = uploadResult.secure_url;
+      } catch (error) {
+        // Clean up both files on error
+        if (data.explanationImagePath)
+          deleteLocalFile(data.explanationImagePath);
+        console.error("Failed to upload question image:", error);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.QUESTION_IMAGE_UPLOAD_FAILED,
+        );
+      }
+    }
+
+    // Upload explanation image to Cloudinary if provided
+    if (data.explanationImagePath) {
+      try {
+        const uploadResult = await uploadImageFromPath(
+          data.explanationImagePath,
+          "questions/explanations",
+        );
+        cloudinaryExplanationImageUrl = uploadResult.secure_url;
+      } catch (error) {
+        // Delete question image if explanation upload fails
+        if (cloudinaryQuestionImageUrl && data.questionImagePath) {
+          const publicId = extractPublicIdFromUrl(cloudinaryQuestionImageUrl);
+          if (publicId) {
+            try {
+              await deleteImage(publicId);
+            } catch (deleteError) {
+              console.warn("Failed to cleanup question image:", deleteError);
+            }
+          }
+        }
+        console.error("Failed to upload explanation image:", error);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.EXPLANATION_IMAGE_UPLOAD_FAILED,
+        );
+      }
     }
 
     const question = await prisma.question.create({
       data: {
         topicId: data.topicId,
         questionText: data.questionText,
-        questionImageUrl: data.questionImageUrl,
+        questionImageUrl: cloudinaryQuestionImageUrl,
         option1: data.option1,
         option2: data.option2,
         option3: data.option3,
         option4: data.option4,
         correctOption: Number(data.correctOption),
         explanation: data.explanation,
-        explanationImageUrl: data.explanationImageUrl,
+        explanationImageUrl: cloudinaryExplanationImageUrl,
         difficultyLevel: data.difficultyLevel || "MEDIUM",
         createdById: data.userId,
       },
@@ -225,7 +278,10 @@ export class QuestionService {
     });
 
     if (!question) {
-      throw new ApiError(404, "Question not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.QUESTION_NOT_FOUND,
+      );
     }
 
     return question;
@@ -237,25 +293,121 @@ export class QuestionService {
     });
 
     if (!question) {
-      throw new ApiError(404, "Question not found");
+      // Clean up uploaded files if question not found
+      if (data.questionImagePath) deleteLocalFile(data.questionImagePath);
+      if (data.explanationImagePath) deleteLocalFile(data.explanationImagePath);
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.QUESTION_NOT_FOUND,
+      );
     }
 
-    if (data.correctOption && ![1, 2, 3, 4].includes(Number(data.correctOption))) {
-      throw new ApiError(400, "Correct option must be between 1 and 4");
+    if (
+      data.correctOption &&
+      ![1, 2, 3, 4].includes(Number(data.correctOption))
+    ) {
+      // Clean up uploaded files if validation fails
+      if (data.questionImagePath) deleteLocalFile(data.questionImagePath);
+      if (data.explanationImagePath) deleteLocalFile(data.explanationImagePath);
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CORRECT_OPTION_INVALID,
+      );
+    }
+
+    let cloudinaryQuestionImageUrl = data.questionImageUrl;
+    let cloudinaryExplanationImageUrl = data.explanationImageUrl;
+    let oldQuestionImagePublicId: string | null = null;
+    let oldExplanationImagePublicId: string | null = null;
+
+    // Handle question image update
+    if (data.questionImagePath) {
+      // Extract public_id from old image for deletion
+      if (question.questionImageUrl) {
+        oldQuestionImagePublicId = extractPublicIdFromUrl(
+          question.questionImageUrl,
+        );
+      }
+
+      try {
+        // Upload new question image
+        const uploadResult = await uploadImageFromPath(
+          data.questionImagePath,
+          "questions",
+        );
+        cloudinaryQuestionImageUrl = uploadResult.secure_url;
+
+        // Delete old question image from Cloudinary
+        if (oldQuestionImagePublicId) {
+          try {
+            await deleteImage(oldQuestionImagePublicId);
+          } catch (deleteError) {
+            console.warn("Failed to delete old question image:", deleteError);
+          }
+        }
+      } catch (error) {
+        // Clean up explanation image if uploaded
+        if (data.explanationImagePath)
+          deleteLocalFile(data.explanationImagePath);
+        console.error("Failed to upload question image:", error);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.QUESTION_IMAGE_UPLOAD_FAILED,
+        );
+      }
+    }
+
+    // Handle explanation image update
+    if (data.explanationImagePath) {
+      // Extract public_id from old image for deletion
+      if (question.explanationImageUrl) {
+        oldExplanationImagePublicId = extractPublicIdFromUrl(
+          question.explanationImageUrl,
+        );
+      }
+
+      try {
+        // Upload new explanation image
+        const uploadResult = await uploadImageFromPath(
+          data.explanationImagePath,
+          "questions/explanations",
+        );
+        cloudinaryExplanationImageUrl = uploadResult.secure_url;
+
+        // Delete old explanation image from Cloudinary
+        if (oldExplanationImagePublicId) {
+          try {
+            await deleteImage(oldExplanationImagePublicId);
+          } catch (deleteError) {
+            console.warn(
+              "Failed to delete old explanation image:",
+              deleteError,
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to upload explanation image:", error);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.EXPLANATION_IMAGE_UPLOAD_FAILED,
+        );
+      }
     }
 
     const updatedQuestion = await prisma.question.update({
       where: { id },
       data: {
         questionText: data.questionText,
-        questionImageUrl: data.questionImageUrl,
+        questionImageUrl: cloudinaryQuestionImageUrl,
         option1: data.option1,
         option2: data.option2,
         option3: data.option3,
         option4: data.option4,
-        correctOption: data.correctOption ? Number(data.correctOption) : undefined,
+        correctOption: data.correctOption
+          ? Number(data.correctOption)
+          : undefined,
         explanation: data.explanation,
-        explanationImageUrl: data.explanationImageUrl,
+        explanationImageUrl: cloudinaryExplanationImageUrl,
         difficultyLevel: data.difficultyLevel || "MEDIUM",
         isActive: data.isActive,
       },
@@ -277,7 +429,10 @@ export class QuestionService {
     });
 
     if (!question) {
-      throw new ApiError(404, "Question not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.QUESTION_NOT_FOUND,
+      );
     }
 
     if (question._count.answer > 0) {
@@ -289,9 +444,38 @@ export class QuestionService {
 
       return {
         softDeleted: true,
-        message: "Question has been deactivated (soft deleted) as it has associated attempts",
+        message:
+          "Question has been deactivated (soft deleted) as it has associated attempts",
       };
     }
+
+    // Delete images from Cloudinary before hard delete
+    const deletePromises = [];
+
+    if (question.questionImageUrl) {
+      const publicId = extractPublicIdFromUrl(question.questionImageUrl);
+      if (publicId) {
+        deletePromises.push(
+          deleteImage(publicId).catch((err) =>
+            console.warn("Failed to delete question image:", err),
+          ),
+        );
+      }
+    }
+
+    if (question.explanationImageUrl) {
+      const publicId = extractPublicIdFromUrl(question.explanationImageUrl);
+      if (publicId) {
+        deletePromises.push(
+          deleteImage(publicId).catch((err) =>
+            console.warn("Failed to delete explanation image:", err),
+          ),
+        );
+      }
+    }
+
+    // Wait for all deletions (continue even if some fail)
+    await Promise.allSettled(deletePromises);
 
     // Hard delete if no attempts
     await prisma.question.delete({
@@ -306,7 +490,7 @@ export class QuestionService {
 
   async bulkUploadQuestions({ userId, file, topicId }: BulkUploadInput) {
     if (!file) {
-      throw new ApiError(400, "CSV file is required");
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.FILE_REQUIRED);
     }
 
     // Validate topic once
@@ -315,31 +499,93 @@ export class QuestionService {
     });
 
     if (!topicExists) {
-      throw new ApiError(400, "Topic not found");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TOPIC_NOT_FOUND,
+      );
     }
 
-    // Parse CSV
-    const results: any[] = [];
-    const errors: any[] = [];
+    // Determine file type and parse accordingly
+    const originalName = file.originalname?.toLowerCase() || "";
+    const isExcel =
+      originalName.endsWith(".xlsx") ||
+      originalName.endsWith(".xls") ||
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.mimetype === "application/vnd.ms-excel";
+    const isCsv = originalName.endsWith(".csv") || file.mimetype === "text/csv";
 
-    await new Promise((resolve, reject) => {
-      Readable.from(file.buffer)
-        .pipe(csv())
-        .on("data", (row) => results.push(row))
-        .on("end", resolve)
-        .on("error", reject);
-    });
+    if (!isExcel && !isCsv) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_FILE_TYPE_CSV_EXCEL,
+      );
+    }
+
+    let results: Record<string, string>[] = [];
+    const errors: { row: number; error: string }[] = [];
+
+    if (isExcel) {
+      // Parse Excel file
+      try {
+        const workbook = XLSX.read(file.buffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0];
+
+        if (!sheetName) {
+          throw new ApiError(
+            HTTP_STATUS.BAD_REQUEST,
+            ERROR_MESSAGES.EXCEL_NO_SHEETS,
+          );
+        }
+
+        const sheet = workbook.Sheets[sheetName];
+        results = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, {
+          defval: "",
+          raw: false,
+        });
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        console.error("Failed to parse Excel file:", error);
+        throw new ApiError(
+          HTTP_STATUS.BAD_REQUEST,
+          ERROR_MESSAGES.EXCEL_PARSE_FAILED,
+        );
+      }
+    } else {
+      // Parse CSV file
+      await new Promise<void>((resolve, reject) => {
+        Readable.from(file.buffer)
+          .pipe(csv())
+          .on("data", (row: Record<string, string>) => results.push(row))
+          .on("end", resolve)
+          .on("error", reject);
+      });
+    }
 
     if (results.length === 0) {
-      throw new ApiError(400, "CSV file is empty");
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.FILE_EMPTY);
     }
 
     // Process rows
-    const questionsToCreate: any[] = [];
+    const questionsToCreate: {
+      topicId: string;
+      questionText: string;
+      option1: string;
+      option2: string;
+      option3: string;
+      option4: string;
+      correctOption: number;
+      explanation: string | null;
+      difficultyLevel: DifficultyLevel;
+      questionImageUrl: string | null;
+      explanationImageUrl: string | null;
+      isActive: boolean;
+      createdById: string;
+    }[] = [];
 
     for (let i = 0; i < results.length; i++) {
       const row = results[i];
-      const rowNum = i + 2; // header + index
+      const rowNum = i + 2; // header + 1-based index
 
       const questionText = row["Question"]?.trim();
       const option1 = row["Option A"]?.trim();
@@ -348,6 +594,7 @@ export class QuestionService {
       const option4 = row["Option D"]?.trim();
       const explanation = row["Explanation"]?.trim() || null;
       const correctOption = mapCorrectAnswer(row["Correct Answer"]);
+      const difficulty = row["Difficulty"]?.trim()?.toUpperCase();
 
       if (
         !questionText ||
@@ -364,6 +611,12 @@ export class QuestionService {
         continue;
       }
 
+      // Validate difficulty if provided
+      const validDifficulty: DifficultyLevel =
+        difficulty && ["EASY", "MEDIUM", "HARD"].includes(difficulty)
+          ? (difficulty as DifficultyLevel)
+          : "MEDIUM";
+
       questionsToCreate.push({
         topicId,
         questionText,
@@ -373,7 +626,7 @@ export class QuestionService {
         option4,
         correctOption,
         explanation,
-        difficultyLevel: "MEDIUM",
+        difficultyLevel: validDifficulty,
         questionImageUrl: null,
         explanationImageUrl: null,
         isActive: true,
@@ -381,15 +634,29 @@ export class QuestionService {
       });
     }
 
-    // Bulk insert
-    const created = await prisma.question.createMany({
-      data: questionsToCreate,
-      skipDuplicates: true,
-    });
+    if (questionsToCreate.length === 0) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.NO_VALID_QUESTIONS,
+      );
+    }
+
+    // Batch insert in chunks for production performance
+    const BATCH_SIZE = 500;
+    let totalCreated = 0;
+
+    for (let i = 0; i < questionsToCreate.length; i += BATCH_SIZE) {
+      const batch = questionsToCreate.slice(i, i + BATCH_SIZE);
+      const created = await prisma.question.createMany({
+        data: batch,
+        skipDuplicates: true,
+      });
+      totalCreated += created.count;
+    }
 
     return {
       totalRows: results.length,
-      successfullyCreated: created.count,
+      successfullyCreated: totalCreated,
       failedRows: errors.length,
       errors: errors.length ? errors : undefined,
     };

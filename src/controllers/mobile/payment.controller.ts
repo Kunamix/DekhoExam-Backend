@@ -1,3 +1,4 @@
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 import { paymentService } from "@/services/payment.service";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
 import { Request, Response } from "express";
@@ -8,22 +9,31 @@ export const createPaymentOrder = asyncHandler(
     const { planId } = req.body;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     if (!planId) {
-      throw new ApiError(400, "planId is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.PLAN_ID_REQUIRED,
+      );
     }
 
-    const paymentData = await paymentService.createPaymentOrder(
-      userId,
-      planId
-    );
+    const paymentData = await paymentService.createPaymentOrder(userId, planId);
 
-    return res.status(200).json(
-      new ApiResponse(200, paymentData, "Payment order created")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          paymentData,
+          SUCCESS_MESSAGES.PAYMENT_ORDER_CREATED,
+        ),
+      );
+  },
 );
 
 export const verifyPayment = asyncHandler(
@@ -31,14 +41,14 @@ export const verifyPayment = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
 
     const result = await paymentService.verifyPayment({
       userId,
@@ -49,18 +59,26 @@ export const verifyPayment = asyncHandler(
 
     if (result.alreadyProcessed) {
       return res
-        .status(200)
-        .json(new ApiResponse(200, {}, "Payment already processed"));
+        .status(HTTP_STATUS.OK)
+        .json(
+          new ApiResponse(
+            HTTP_STATUS.OK,
+            {},
+            SUCCESS_MESSAGES.PAYMENT_ALREADY_PROCESSED,
+          ),
+        );
     }
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        { success: true },
-        "Payment verified and subscription activated"
-      )
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          { success: true },
+          SUCCESS_MESSAGES.PAYMENT_VERIFIED_SUBSCRIPTION,
+        ),
+      );
+  },
 );
 
 // GET /payments/history
@@ -69,19 +87,24 @@ export const getPaymentHistory = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const payments = await paymentService.getPaymentHistory(userId);
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        payments,
-        "Payment history fetched successfully"
-      )
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          payments,
+          SUCCESS_MESSAGES.PAYMENT_HISTORY_FETCHED,
+        ),
+      );
+  },
 );
 
 // GET /payments/:id
@@ -91,13 +114,22 @@ export const getPaymentById = asyncHandler(
     const { id } = req.params;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const payment = await paymentService.getPaymentById(userId, id.toString());
 
-    return res.status(200).json(
-      new ApiResponse(200, payment, "Payment fetched successfully")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          payment,
+          SUCCESS_MESSAGES.PAYMENT_FETCHED,
+        ),
+      );
+  },
 );

@@ -67,6 +67,8 @@ Thumbs.db
 # Uploads (if applicable)
 uploads/
 public/uploads/
+public/image/*
+!public/image/.gitkeep
 Notes
 tasks
 

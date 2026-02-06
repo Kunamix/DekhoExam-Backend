@@ -1,3 +1,4 @@
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 import { testAttemptService } from "@/services/test-attempt.service";
 import { testService } from "@/services/test.service";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
@@ -9,7 +10,10 @@ export const getTestsByCategory = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const tests = await testService.getTestsByCategory(
@@ -18,8 +22,10 @@ export const getTestsByCategory = asyncHandler(
     );
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, tests, "Tests fetched successfully"));
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(HTTP_STATUS.OK, tests, SUCCESS_MESSAGES.TESTS_FETCHED),
+      );
   },
 );
 
@@ -28,53 +34,70 @@ export const getPopularTests = asyncHandler(
     const tests = await testService.getPopularTests(5);
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, tests, "Popular tests fetched"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          tests,
+          SUCCESS_MESSAGES.POPULAR_TESTS_FETCHED,
+        ),
+      );
+  },
 );
 
-export const getTestById = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
+export const getTestById = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
 
-    const test = await testService.getTestById(id.toString());
+  const test = await testService.getTestById(id.toString());
 
-    return res
-      .status(200)
-      .json(new ApiResponse(200, test, "Test fetched successfully"));
-  }
-);
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, test, SUCCESS_MESSAGES.TEST_FETCHED));
+});
 
 export const getTestInstructions = asyncHandler(
   async (req: Request, res: Response) => {
     const { testId } = req.params;
 
-    const instructions = await testService.getTestInstructions(testId.toString());
+    const instructions = await testService.getTestInstructions(
+      testId.toString(),
+    );
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, instructions, "Instructions fetched")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          instructions,
+          SUCCESS_MESSAGES.INSTRUCTIONS_FETCHED,
+        ),
       );
-  }
+  },
 );
 
-export const startTest = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = req.user?.id;
-    const { testId } = req.params;
+export const startTest = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const { testId } = req.params;
 
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
-    }
-
-    const result = await testService.startTest(userId, testId.toString());
-
-    return res.status(201).json(
-      new ApiResponse(201, result, "Test started successfully")
+  if (!userId) {
+    throw new ApiError(
+      HTTP_STATUS.UNAUTHORIZED,
+      ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
     );
   }
-);
+
+  const result = await testService.startTest(userId, testId.toString());
+
+  return res
+    .status(HTTP_STATUS.CREATED)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.CREATED,
+        result,
+        SUCCESS_MESSAGES.TEST_STARTED,
+      ),
+    );
+});
 
 export const getTestQuestions = asyncHandler(
   async (req: Request, res: Response) => {
@@ -82,68 +105,72 @@ export const getTestQuestions = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const result = await testAttemptService.getTestQuestions(
       attemptId.toString(),
-      userId
+      userId,
     );
-
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        result,
-        "Questions fetched"
-      )
-    );
-  }
-);
-
-export const saveAnswer = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { attemptId } = req.params;
-    const { questionId, selectedOption, timeSpent } = req.body;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
-    }
-
-    await testAttemptService.saveAnswer({
-      attemptId:attemptId.toString(),
-      questionId,
-      selectedOption,
-      timeSpent,
-    });
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, null, "Saved"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.QUESTIONS_LOADED,
+        ),
+      );
+  },
 );
 
-export const submitTest = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { attemptId } = req.params;
-    const userId = req.user?.id;
+export const saveAnswer = asyncHandler(async (req: Request, res: Response) => {
+  const { attemptId } = req.params;
+  const { questionId, selectedOption, timeSpent } = req.body;
+  const userId = req.user?.id;
 
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
-    }
-
-    const result =
-      await testAttemptService.submitTest(attemptId.toString());
-
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        result,
-        "Test submitted successfully"
-      )
+  if (!userId) {
+    throw new ApiError(
+      HTTP_STATUS.UNAUTHORIZED,
+      ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
     );
   }
-);
+
+  await testAttemptService.saveAnswer({
+    attemptId: attemptId.toString(),
+    questionId,
+    selectedOption,
+    timeSpent,
+  });
+
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, null, SUCCESS_MESSAGES.ANSWER_SAVED));
+});
+
+export const submitTest = asyncHandler(async (req: Request, res: Response) => {
+  const { attemptId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw new ApiError(
+      HTTP_STATUS.UNAUTHORIZED,
+      ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+    );
+  }
+
+  const result = await testAttemptService.submitTest(attemptId.toString());
+
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.TEST_SUBMITTED),
+    );
+});
 
 export const getTestResult = asyncHandler(
   async (req: Request, res: Response) => {
@@ -151,43 +178,54 @@ export const getTestResult = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
-    const result =
-      await testAttemptService.getTestResult(attemptId.toString());
+    const result = await testAttemptService.getTestResult(attemptId.toString());
 
-    return res.status(200).json(
-      new ApiResponse(200, result, "Result fetched")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.RESULT_FETCHED,
+        ),
+      );
+  },
 );
 
 export const viewTestSolution = asyncHandler(
   async (req: Request, res: Response) => {
     const { attemptId } = req.params;
     const userObj = req.user as any;
-    const currentUserId =
-      userObj?.id || userObj?.userId;
+    const currentUserId = userObj?.id || userObj?.userId;
 
     if (!currentUserId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
-    const result =
-      await testAttemptService.viewTestSolution(
-        attemptId.toString(),
-        currentUserId
-      );
-
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        result,
-        "Solutions fetched successfully"
-      )
+    const result = await testAttemptService.viewTestSolution(
+      attemptId.toString(),
+      currentUserId,
     );
-  }
+
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.SOLUTIONS_FETCHED,
+        ),
+      );
+  },
 );
 
 export const getAttemptHistory = asyncHandler(
@@ -195,18 +233,22 @@ export const getAttemptHistory = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
-    const history =
-      await testAttemptService.getAttemptHistory(userId);
+    const history = await testAttemptService.getAttemptHistory(userId);
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        history,
-        "History fetched"
-      )
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          history,
+          SUCCESS_MESSAGES.HISTORY_FETCHED,
+        ),
+      );
+  },
 );

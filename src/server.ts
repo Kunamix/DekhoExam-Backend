@@ -2,7 +2,7 @@ import http from "http";
 import app from "./app";
 import logger from "./logger/winston.logger";
 import { myEnvironment } from "@/configs";
-import { stopCronJobs } from "@/jobs";
+import { startCronJobs, stopCronJobs } from "@/jobs";
 import { prisma } from "./configs";
 
 
@@ -14,6 +14,7 @@ const server = http.createServer(app);
 const startServer = async () => {
   try {
     server.listen(PORT, () => {
+      startCronJobs();
       logger.info(`🚀 Server running on port: ${myEnvironment.PORT}`);
       logger.info(`📑 Health check: http://localhost:${myEnvironment.PORT}/health`);
     });

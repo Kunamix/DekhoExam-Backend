@@ -1,5 +1,5 @@
 import { prisma, myEnvironment } from "@/configs";
-
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 import { authHelper } from "@/utils/auth-helper.util";
 
@@ -54,11 +54,17 @@ export class AdminAuthService {
     });
 
     if (!admin || admin.role !== "ADMIN") {
-      throw new ApiError(401, "Invalid credentials");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.INVALID_CREDENTIALS,
+      );
     }
 
     if (!admin.password) {
-      throw new ApiError(401, "Please use OTP login");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.PLEASE_USE_OTP_LOGIN,
+      );
     }
 
     const isPasswordValid = await authHelper.verifyHash(
@@ -67,7 +73,10 @@ export class AdminAuthService {
     );
 
     if (!isPasswordValid) {
-      throw new ApiError(401, "Invalid credentials");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.INVALID_CREDENTIALS,
+      );
     }
 
     await prisma.session.deleteMany({
@@ -121,7 +130,10 @@ export class AdminAuthService {
     });
 
     if (!admin || admin.role !== "ADMIN") {
-      throw new ApiError(401, "Invalid phone number");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.INVALID_PHONE_NUMBER,
+      );
     }
 
     const otpCode = "123456"; // TODO: real generator
@@ -176,7 +188,10 @@ export class AdminAuthService {
         myEnvironment.OTP_VERIFY_SECRET as string,
       );
     } catch {
-      throw new ApiError(401, "OTP session expired");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.OTP_SESSION_EXPIRED,
+      );
     }
 
     const otpRecord = await prisma.oTP.findUnique({
@@ -185,22 +200,27 @@ export class AdminAuthService {
 
     if (
       !otpRecord ||
-      otpRecord.phoneNumber?.toString() !==
-        decoded.phoneNumber.toString()
+      otpRecord.phoneNumber?.toString() !== decoded.phoneNumber.toString()
     ) {
-      throw new ApiError(401, "Invalid OTP");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_OTP);
     }
 
     if (otpRecord.isVerified) {
-      throw new ApiError(401, "OTP already used");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.OTP_ALREADY_USED,
+      );
     }
 
     if (new Date() > otpRecord.expiresAt) {
-      throw new ApiError(401, "OTP expired");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.OTP_EXPIRED);
     }
 
     if (otpRecord.attempts >= 3) {
-      throw new ApiError(429, "Too many attempts");
+      throw new ApiError(
+        HTTP_STATUS.TOO_MANY_REQUESTS,
+        ERROR_MESSAGES.TOO_MANY_OTP_ATTEMPTS,
+      );
     }
 
     if (otpRecord.code !== otpCode) {
@@ -209,7 +229,7 @@ export class AdminAuthService {
         data: { attempts: { increment: 1 } },
       });
 
-      throw new ApiError(401, "Invalid OTP");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_OTP);
     }
 
     const admin = await prisma.user.findUnique({
@@ -217,7 +237,10 @@ export class AdminAuthService {
     });
 
     if (!admin || admin.role !== "ADMIN") {
-      throw new ApiError(401, "Invalid credentials");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.INVALID_CREDENTIALS,
+      );
     }
 
     // 🔥 transactional safety
@@ -288,7 +311,10 @@ export class AdminAuthService {
         myEnvironment.REFRESH_SECRET as string,
       );
     } catch {
-      throw new ApiError(401, "Invalid or expired refresh token");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.REFRESH_TOKEN_INVALID,
+      );
     }
 
     const session = await prisma.session.findFirst({
@@ -300,7 +326,10 @@ export class AdminAuthService {
     });
 
     if (!session) {
-      throw new ApiError(401, "Invalid refresh token");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
+      );
     }
 
     if (new Date() > session.expiresAt) {
@@ -308,7 +337,10 @@ export class AdminAuthService {
         where: { id: session.id },
       });
 
-      throw new ApiError(401, "Session expired");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.SESSION_EXPIRED,
+      );
     }
 
     const newAccessToken = authHelper.signToken(
@@ -340,7 +372,7 @@ export class AdminAuthService {
 
   async logout({ userId }: AdminLogoutInput) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
     }
 
     await prisma.session.deleteMany({
@@ -348,10 +380,12 @@ export class AdminAuthService {
     });
   }
 
-
   async getMe({ userId }: GetAdminProfileInput) {
     if (!userId) {
-      throw new ApiError(401, "Your session is expired");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.TOKEN_EXPIRED,
+      );
     }
 
     const admin = await prisma.user.findUnique({
@@ -359,7 +393,10 @@ export class AdminAuthService {
     });
 
     if (!admin || admin.role !== "ADMIN") {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     return admin;

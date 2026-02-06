@@ -1,3 +1,4 @@
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 import { userService } from "@/services/user.service";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
 import { Request, Response } from "express";
@@ -9,7 +10,10 @@ export const updateProfile = asyncHandler(
     const { name, email } = req.body;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const updatedUser = await userService.updateProfile({
@@ -18,10 +22,16 @@ export const updateProfile = asyncHandler(
       email,
     });
 
-    return res.status(200).json(
-      new ApiResponse(200, updatedUser, "Profile updated successfully")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          updatedUser,
+          SUCCESS_MESSAGES.PROFILE_UPDATED,
+        ),
+      );
+  },
 );
 
 // PATCH /user/password
@@ -31,7 +41,10 @@ export const updatePassword = asyncHandler(
     const { currentPassword, newPassword } = req.body;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     await userService.updatePassword({
@@ -40,12 +53,14 @@ export const updatePassword = asyncHandler(
       newPassword,
     });
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        null,
-        "Password updated successfully. Please login again."
-      )
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          null,
+          SUCCESS_MESSAGES.PASSWORD_UPDATED,
+        ),
+      );
+  },
 );

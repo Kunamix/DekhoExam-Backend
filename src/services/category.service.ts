@@ -1,5 +1,12 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
+import {
+  uploadImageFromPath,
+  extractPublicIdFromUrl,
+  deleteImage,
+  deleteLocalFile,
+} from "@/configs/cloudinary.config";
 
 interface GetAllCategoriesInput {
   page?: number;
@@ -12,6 +19,7 @@ interface CreateCategoryInput {
   name: string;
   description?: string;
   imageUrl?: string;
+  imagePath?: string; // Local file path from multer
   displayOrder?: number;
   createdById: string;
 }
@@ -21,6 +29,7 @@ interface UpdateCategoryInput {
   name?: string;
   description?: string;
   imageUrl?: string;
+  imagePath?: string; // Local file path from multer
   displayOrder?: number;
   isActive?: boolean;
 }
@@ -43,15 +52,19 @@ export class CategoryService {
     name,
     description,
     imageUrl,
+    imagePath,
     displayOrder = 0,
     createdById,
   }: CreateCategoryInput) {
     if (!createdById) {
-      throw new ApiError(401, "Unauthorized");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
     }
 
     if (!name) {
-      throw new ApiError(400, "Category name is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_NAME_REQUIRED,
+      );
     }
 
     const existingCategory = await prisma.category.findUnique({
@@ -59,14 +72,37 @@ export class CategoryService {
     });
 
     if (existingCategory) {
-      throw new ApiError(409, "Category with this name already exists");
+      // Delete local file if upload failed due to duplicate
+      if (imagePath) {
+        deleteLocalFile(imagePath);
+      }
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        ERROR_MESSAGES.CATEGORY_ALREADY_EXISTS,
+      );
+    }
+
+    let cloudinaryImageUrl = imageUrl;
+
+    // Upload image to Cloudinary if imagePath is provided
+    if (imagePath) {
+      try {
+        const uploadResult = await uploadImageFromPath(imagePath, "categories");
+        cloudinaryImageUrl = uploadResult.secure_url;
+      } catch (error) {
+        console.error("Failed to upload image to Cloudinary:", error);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.IMAGE_UPLOAD_FAILED,
+        );
+      }
     }
 
     const category = await prisma.category.create({
       data: {
         name,
         description,
-        imageUrl,
+        imageUrl: cloudinaryImageUrl,
         displayOrder,
         createdById,
       },
@@ -80,6 +116,7 @@ export class CategoryService {
     name,
     description,
     imageUrl,
+    imagePath,
     displayOrder,
     isActive,
   }: UpdateCategoryInput) {
@@ -88,7 +125,14 @@ export class CategoryService {
     });
 
     if (!category) {
-      throw new ApiError(404, "Category not found");
+      // Delete local file if category not found
+      if (imagePath) {
+        deleteLocalFile(imagePath);
+      }
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+      );
     }
 
     // Prevent duplicate names
@@ -98,7 +142,50 @@ export class CategoryService {
       });
 
       if (existingCategory) {
-        throw new ApiError(409, "Category with this name already exists");
+        // Delete local file if duplicate found
+        if (imagePath) {
+          deleteLocalFile(imagePath);
+        }
+        throw new ApiError(
+          HTTP_STATUS.CONFLICT,
+          ERROR_MESSAGES.CATEGORY_ALREADY_EXISTS,
+        );
+      }
+    }
+
+    let cloudinaryImageUrl = imageUrl;
+    let oldImagePublicId: string | null = null;
+
+    // Handle image update
+    if (imagePath) {
+      // Extract public_id from old image URL for deletion
+      if (category.imageUrl) {
+        oldImagePublicId = extractPublicIdFromUrl(category.imageUrl);
+      }
+
+      try {
+        // Upload new image to Cloudinary
+        const uploadResult = await uploadImageFromPath(imagePath, "categories");
+        cloudinaryImageUrl = uploadResult.secure_url;
+
+        // Delete old image from Cloudinary if exists
+        if (oldImagePublicId) {
+          try {
+            await deleteImage(oldImagePublicId);
+          } catch (deleteError) {
+            console.warn(
+              "Failed to delete old image from Cloudinary:",
+              deleteError,
+            );
+            // Continue even if old image deletion fails
+          }
+        }
+      } catch (error) {
+        console.error("Failed to upload image to Cloudinary:", error);
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.IMAGE_UPLOAD_FAILED,
+        );
       }
     }
 
@@ -107,7 +194,7 @@ export class CategoryService {
       data: {
         name,
         description,
-        imageUrl,
+        imageUrl: cloudinaryImageUrl,
         displayOrder,
         isActive,
       },
@@ -172,8 +259,11 @@ export class CategoryService {
   }
 
   async getCategoryById(categoryId: string) {
-    if(!categoryId){
-      throw new ApiError(401,"Please provide categoryId")
+    if (!categoryId) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_ID_REQUIRED,
+      );
     }
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
@@ -214,7 +304,10 @@ export class CategoryService {
     });
 
     if (!category) {
-      throw new ApiError(404, "Category not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+      );
     }
 
     return category;
@@ -262,7 +355,10 @@ export class CategoryService {
     });
 
     if (!category) {
-      throw new ApiError(404, "Category not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+      );
     }
 
     const updatedCategory = await prisma.category.update({
@@ -288,7 +384,10 @@ export class CategoryService {
 
   async assignSubjects({ categoryId, subjects }: AssignSubjectsInput) {
     if (!Array.isArray(subjects) || subjects.length === 0) {
-      throw new ApiError(400, "Subjects array is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.SUBJECTS_ARRAY_REQUIRED,
+      );
     }
 
     const category = await prisma.category.findUnique({
@@ -296,7 +395,10 @@ export class CategoryService {
     });
 
     if (!category) {
-      throw new ApiError(404, "Category not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+      );
     }
 
     // Transaction = safe replace
@@ -336,14 +438,30 @@ export class CategoryService {
     });
 
     if (!category) {
-      throw new ApiError(404, "Category not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+      );
     }
 
     if (category._count.tests > 0 || category._count.categorySubjects > 0) {
       throw new ApiError(
-        400,
-        "Cannot delete category with associated tests or subjects",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_HAS_ASSOCIATIONS,
       );
+    }
+
+    // Delete image from Cloudinary if exists
+    if (category.imageUrl) {
+      const publicId = extractPublicIdFromUrl(category.imageUrl);
+      if (publicId) {
+        try {
+          await deleteImage(publicId);
+        } catch (deleteError) {
+          console.warn("Failed to delete image from Cloudinary:", deleteError);
+          // Continue with category deletion even if image deletion fails
+        }
+      }
     }
 
     await prisma.category.delete({
@@ -362,7 +480,10 @@ export class CategoryService {
     });
 
     if (existingCategories.length !== categoryIds.length) {
-      throw new ApiError(404, "One or more categories not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORIES_NOT_FOUND,
+      );
     }
 
     // Update display orders in a transaction

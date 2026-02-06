@@ -12,7 +12,10 @@ const _environment = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
-  HEALTH_CHECK_URL:process.env.HEALTH_CHECK_URL
+  HEALTH_CHECK_URL:process.env.HEALTH_CHECK_URL,
+  CLOUDINARY_CLOUD_NAME:process.env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY:process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET:process.env.CLOUDINARY_API_SECRET
 };
 
 export const myEnvironment = Object.freeze(_environment);

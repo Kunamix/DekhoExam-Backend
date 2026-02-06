@@ -7,7 +7,12 @@ import {
   getQuestionStats,
   updateQuestion,
 } from "@/controllers/admin/question.controller";
-import { upload, verifyAdmin, verifyToken } from "@/middlewares";
+import {
+  docUpload,
+  imageUpload,
+  verifyAdmin,
+  verifyToken,
+} from "@/middlewares";
 import { Router } from "express";
 
 const router = Router();
@@ -16,7 +21,7 @@ router.post(
   "/",
   verifyToken,
   verifyAdmin,
-  upload.fields([
+  imageUpload.fields([
     { name: "questionImage", maxCount: 1 },
     { name: "explanationImage", maxCount: 1 },
   ]),
@@ -28,7 +33,7 @@ router.post(
   "/bulk-upload",
   verifyToken,
   verifyAdmin,
-  upload.single("file"),
+  docUpload.single("file"),
   bulkUploadQuestions,
 );
 router.get("/:id", verifyToken, verifyAdmin, getQuestionById);
@@ -36,7 +41,7 @@ router.put(
   "/:id",
   verifyToken,
   verifyAdmin,
-  upload.fields([
+  imageUpload.fields([
     { name: "questionImage", maxCount: 1 },
     { name: "explanationImage", maxCount: 1 },
   ]),

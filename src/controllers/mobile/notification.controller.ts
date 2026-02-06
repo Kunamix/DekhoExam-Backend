@@ -1,3 +1,4 @@
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 import { notificationService } from "@/services/notification.service";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
 import { Request, Response } from "express";
@@ -8,39 +9,46 @@ export const getNotifications = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
-    const notifications =
-      await notificationService.getNotifications(userId);
+    const notifications = await notificationService.getNotifications(userId);
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        notifications,
-        "Notifications fetched successfully"
-      )
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          notifications,
+          SUCCESS_MESSAGES.NOTIFICATIONS_FETCHED,
+        ),
+      );
+  },
 );
 
 // PATCH /notifications/:id/read
-export const markAsRead = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = req.user?.id;
-    const { id } = req.params;
+export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const { id } = req.params;
 
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
-    }
-
-    await notificationService.markAsRead(userId, id.toString());
-
-    return res.status(200).json(
-      new ApiResponse(200, {}, "Notification marked as read")
+  if (!userId) {
+    throw new ApiError(
+      HTTP_STATUS.UNAUTHORIZED,
+      ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
     );
   }
-);
+
+  await notificationService.markAsRead(userId, id.toString());
+
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, {}, SUCCESS_MESSAGES.NOTIFICATION_READ),
+    );
+});
 
 // PATCH /notifications/read-all
 export const markAllAsRead = asyncHandler(
@@ -48,15 +56,24 @@ export const markAllAsRead = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     await notificationService.markAllAsRead(userId);
 
-    return res.status(200).json(
-      new ApiResponse(200, {}, "All notifications marked as read")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          {},
+          SUCCESS_MESSAGES.ALL_NOTIFICATIONS_READ,
+        ),
+      );
+  },
 );
 
 // DELETE /notifications/:id
@@ -66,13 +83,22 @@ export const deleteNotification = asyncHandler(
     const { id } = req.params;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     await notificationService.deleteNotification(userId, id.toString());
 
-    return res.status(200).json(
-      new ApiResponse(200, {}, "Notification deleted successfully")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          {},
+          SUCCESS_MESSAGES.NOTIFICATION_DELETED,
+        ),
+      );
+  },
 );

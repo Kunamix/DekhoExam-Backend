@@ -1,4 +1,5 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 
 interface GetAllUserSubscriptionsInput {
@@ -88,7 +89,10 @@ export class UserSubscriptionService {
 
   async extendSubscription(id: string, additionalDays: number) {
     if (!additionalDays || additionalDays <= 0) {
-      throw new ApiError(400, "Valid additional days are required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_ADDITIONAL_DAYS,
+      );
     }
 
     const subscription = await prisma.userSubscription.findUnique({
@@ -96,17 +100,19 @@ export class UserSubscriptionService {
     });
 
     if (!subscription) {
-      throw new ApiError(404, "Subscription not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     const newEndDate = new Date(subscription.endDate);
     newEndDate.setDate(newEndDate.getDate() + additionalDays);
 
-    const updatedSubscription =
-      await prisma.userSubscription.update({
-        where: { id },
-        data: { endDate: newEndDate },
-      });
+    const updatedSubscription = await prisma.userSubscription.update({
+      where: { id },
+      data: { endDate: newEndDate },
+    });
 
     return updatedSubscription;
   }
@@ -118,7 +124,10 @@ export class UserSubscriptionService {
     durationDays,
   }: CreateUserSubscriptionInput) {
     if (!userId || !planId) {
-      throw new ApiError(400, "User ID and Plan ID are required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.USER_SUBSCRIPTION_FIELDS_REQUIRED,
+      );
     }
 
     const user = await prisma.user.findUnique({
@@ -126,7 +135,7 @@ export class UserSubscriptionService {
     });
 
     if (!user) {
-      throw new ApiError(404, "User not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     const plan = await prisma.subscriptionPlan.findUnique({
@@ -134,14 +143,20 @@ export class UserSubscriptionService {
     });
 
     if (!plan) {
-      throw new ApiError(404, "Subscription plan not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     const start = startDate ? new Date(startDate) : new Date();
     const duration = durationDays ?? plan.durationDays;
 
     if (duration <= 0) {
-      throw new ApiError(400, "Invalid subscription duration");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_SUBSCRIPTION_DURATION,
+      );
     }
 
     const end = new Date(start);
@@ -168,21 +183,22 @@ export class UserSubscriptionService {
     });
 
     if (!subscription) {
-      throw new ApiError(404, "Subscription not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
-    const updatedSubscription =
-      await prisma.userSubscription.update({
-        where: { id },
-        data: {
-          isActive: false,
-          autoRenew: false,
-        },
-      });
+    const updatedSubscription = await prisma.userSubscription.update({
+      where: { id },
+      data: {
+        isActive: false,
+        autoRenew: false,
+      },
+    });
 
     return updatedSubscription;
   }
 }
 
-export const userSubscriptionService =
-  new UserSubscriptionService();
+export const userSubscriptionService = new UserSubscriptionService();

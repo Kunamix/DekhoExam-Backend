@@ -1,51 +1,47 @@
 import multer from "multer";
 import { Request } from "express";
-import { ApiError } from "../utils/api-error.util";
 
-// Configure multer for memory storage
-const storage = multer.memoryStorage();
+const ALLOWED_DOC_TYPES = [
+  "text/csv",
+  "application/vnd.ms-excel", // .xls
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+];
+
+const ALLOWED_DOC_EXTENSIONS = [".csv", ".xls", ".xlsx"];
+
+// Configure multer for memory storage (CSV/Excel files)
+const docStorage = multer.memoryStorage();
 
 // File filter function
-const fileFilter = (
+const docFileFilter = (
   _req: Request,
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ) => {
-  // Accept only CSV files
-  if (file.mimetype === "text/csv" || file.originalname.endsWith(".csv")) {
+  const ext = file.originalname
+    .substring(file.originalname.lastIndexOf("."))
+    .toLowerCase();
+
+  if (
+    ALLOWED_DOC_TYPES.includes(file.mimetype) ||
+    ALLOWED_DOC_EXTENSIONS.includes(ext)
+  ) {
     cb(null, true);
   } else {
-    cb(new ApiError(400, "Only CSV files are allowed") as any, false);
+    cb(new Error("Only CSV and Excel (.xls, .xlsx) files are allowed"));
   }
 };
 
-// Configure multer upload
-export const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
+/**
+ * Multer instance for document uploads (CSV, Excel).
+ * - Stored in memory buffer
+ * - Max 10MB per file
+ * - Only CSV and Excel mimetypes allowed
+ */
+export const docUpload = multer({
+  storage: docStorage,
+  fileFilter: docFileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB max file size
   },
 });
-
-// Middleware to handle multer errors
-export const handleMulterError = (
-  err: any,
-  _req: Request,
-  res: any,
-  next: any,
-) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({
-        success: false,
-        message: "File size is too large. Maximum size is 10MB",
-      });
-    }
-    return res.status(400).json({
-      success: false,
-      message: `Upload error: ${err.message}`,
-    });
-  }
-  next(err);
-};

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
 import { categoryService } from "@/services/category.service";
 
@@ -13,22 +14,34 @@ export const getAllCategories = asyncHandler(
       search: search as string | undefined,
     });
 
-    return res.status(200).json(
-      new ApiResponse(200, result, "Categories fetched successfully")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.CATEGORIES_FETCHED,
+        ),
+      );
+  },
 );
 
 export const getCategoryById = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    
+
     const category = await categoryService.getCategoryById(id.toString());
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, category, "Category fetched successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          category,
+          SUCCESS_MESSAGES.CATEGORY_FETCHED,
+        ),
+      );
+  },
 );
 
 export const checkCategoryAccess = asyncHandler(
@@ -37,22 +50,25 @@ export const checkCategoryAccess = asyncHandler(
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const result = await categoryService.checkCategoryAccess(
       userId,
-      id.toString()
+      id.toString(),
     );
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
         new ApiResponse(
-          200,
+          HTTP_STATUS.OK,
           result,
-          result.isUnlocked ? "Unlocked" : "Locked"
-        )
+          result.isUnlocked ? "Unlocked" : "Locked",
+        ),
       );
-  }
+  },
 );

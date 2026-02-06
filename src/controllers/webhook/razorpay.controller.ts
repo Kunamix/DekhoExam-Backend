@@ -1,5 +1,6 @@
 import { myEnvironment, prisma } from "@/configs";
-import crypto from "crypto"
+import { HTTP_STATUS } from "@/constants";
+import crypto from "crypto";
 import { Request, Response } from "express";
 
 export const handleRazorpayWebhook = async (req: Request, res: Response) => {
@@ -12,7 +13,9 @@ export const handleRazorpayWebhook = async (req: Request, res: Response) => {
 
   if (digest !== req.headers["x-razorpay-signature"]) {
     console.error("Invalid Webhook Signature");
-    return res.status(400).json({ status: "invalid_signature" });
+    return res
+      .status(HTTP_STATUS.BAD_REQUEST)
+      .json({ status: "invalid_signature" });
   }
 
   const event = req.body.event;
@@ -63,5 +66,5 @@ export const handleRazorpayWebhook = async (req: Request, res: Response) => {
     });
   }
 
-  return res.status(200).json({ status: "ok" });
+  return res.status(HTTP_STATUS.OK).json({ status: "ok" });
 };

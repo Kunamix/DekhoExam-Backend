@@ -1,5 +1,6 @@
 import { prisma } from "@/configs";
 import { ApiError } from "@/utils";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 
 interface GetAllReportsInput {
   page?: number;
@@ -142,7 +143,10 @@ export class ReportService {
     });
 
     if (!report) {
-      throw new ApiError(404, "Report not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.REPORT_NOT_FOUND,
+      );
     }
 
     // If entityId exists, fetch additional context based on type
@@ -197,8 +201,8 @@ export class ReportService {
 
     if (!validStatuses.includes(status)) {
       throw new ApiError(
-        400,
-        "Invalid status. Must be PENDING, RESOLVED, or DISMISSED"
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_REPORT_STATUS,
       );
     }
 
@@ -207,7 +211,10 @@ export class ReportService {
     });
 
     if (!report) {
-      throw new ApiError(404, "Report not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.REPORT_NOT_FOUND,
+      );
     }
 
     const updatedReport = await prisma.report.update({
@@ -234,7 +241,10 @@ export class ReportService {
     });
 
     if (!report) {
-      throw new ApiError(404, "Report not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.REPORT_NOT_FOUND,
+      );
     }
 
     await prisma.report.delete({

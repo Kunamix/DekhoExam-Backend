@@ -1,4 +1,5 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { Prisma } from "@/generated/prisma/client";
 import { SubscriptionType } from "@/generated/prisma/enums";
 import { ApiError } from "@/utils";
@@ -54,8 +55,8 @@ export class TestService {
   }: CreateTestInput) {
     if (!categoryId || !name || !testNumber) {
       throw new ApiError(
-        400,
-        "Category ID, test name, and test number are required",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TEST_FIELDS_REQUIRED,
       );
     }
 
@@ -64,7 +65,10 @@ export class TestService {
     });
 
     if (!category) {
-      throw new ApiError(404, "Category not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+      );
     }
 
     const existingTest = await prisma.test.findFirst({
@@ -76,8 +80,8 @@ export class TestService {
 
     if (existingTest) {
       throw new ApiError(
-        409,
-        "Test with this number already exists in this category",
+        HTTP_STATUS.CONFLICT,
+        ERROR_MESSAGES.TEST_NUMBER_EXISTS,
       );
     }
 
@@ -97,7 +101,10 @@ export class TestService {
     });
 
     if (blueprint.length === 0) {
-      throw new ApiError(400, "No subjects configured for this category");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.NO_SUBJECTS_CONFIGURED,
+      );
     }
 
     // 🔹 Collect already-used question IDs
@@ -150,7 +157,7 @@ export class TestService {
 
     if (insufficientSubjects.length > 0) {
       throw new ApiError(
-        400,
+        HTTP_STATUS.BAD_REQUEST,
         `Insufficient unused questions:\n${insufficientSubjects.join(
           "\n",
         )}\n\nPlease upload more questions before creating this test`,
@@ -202,7 +209,7 @@ export class TestService {
     });
 
     if (!test) {
-      throw new ApiError(404, "Test not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
     // Check duplicate test number
@@ -217,8 +224,8 @@ export class TestService {
 
       if (existing) {
         throw new ApiError(
-          409,
-          "Test with this number already exists in this category",
+          HTTP_STATUS.CONFLICT,
+          ERROR_MESSAGES.TEST_NUMBER_EXISTS,
         );
       }
     }
@@ -248,7 +255,10 @@ export class TestService {
   }
   async clone(id: string, testNumber: number, userId: string) {
     if (!testNumber) {
-      throw new ApiError(400, "Test number is required for cloning");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TEST_NUMBER_REQUIRED,
+      );
     }
 
     const original = await prisma.test.findUnique({
@@ -256,7 +266,7 @@ export class TestService {
     });
 
     if (!original) {
-      throw new ApiError(404, "Test not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
     const duplicate = await prisma.test.findFirst({
@@ -268,8 +278,8 @@ export class TestService {
 
     if (duplicate) {
       throw new ApiError(
-        409,
-        "Test with this number already exists in this category",
+        HTTP_STATUS.CONFLICT,
+        ERROR_MESSAGES.TEST_NUMBER_EXISTS,
       );
     }
 
@@ -301,7 +311,7 @@ export class TestService {
     });
 
     if (!test) {
-      throw new ApiError(404, "Test not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
     // Soft delete
@@ -331,7 +341,7 @@ export class TestService {
     });
 
     if (!test) {
-      throw new ApiError(404, "Test not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
     return prisma.test.update({
@@ -485,7 +495,10 @@ export class TestService {
 
   async getTestsByCategory(categoryId: string, userId: string) {
     if (!categoryId) {
-      throw new ApiError(400, "Category ID is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_ID_REQUIRED,
+      );
     }
 
     const tests = await prisma.test.findMany({
@@ -602,7 +615,7 @@ export class TestService {
     });
 
     if (!test) {
-      throw new ApiError(404, "Test not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
     return test;
@@ -624,7 +637,7 @@ export class TestService {
     });
 
     if (!test) {
-      throw new ApiError(404, "Test not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
     return test;
@@ -632,7 +645,10 @@ export class TestService {
 
   async startTest(userId: string, testId: string) {
     if (!userId || !testId) {
-      throw new ApiError(400, "User ID and Test ID are required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.USER_TEST_ID_REQUIRED,
+      );
     }
 
     // 1️⃣ Fetch test & user
@@ -641,8 +657,10 @@ export class TestService {
       prisma.user.findUnique({ where: { id: userId } }),
     ]);
 
-    if (!test) throw new ApiError(404, "Test not found");
-    if (!user) throw new ApiError(404, "User not found");
+    if (!test)
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
+    if (!user)
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
 
     // 2️⃣ Block multiple active attempts (VERY IMPORTANT)
     const activeAttempt = await prisma.testAttempt.findFirst({
@@ -655,8 +673,8 @@ export class TestService {
 
     if (activeAttempt) {
       throw new ApiError(
-        409,
-        "You already have an active attempt for this test",
+        HTTP_STATUS.CONFLICT,
+        ERROR_MESSAGES.ACTIVE_ATTEMPT_EXISTS,
       );
     }
 
@@ -695,8 +713,8 @@ export class TestService {
           consumeFreeAttempt = true;
         } else {
           throw new ApiError(
-            403,
-            "You have used your free attempts. Please purchase a subscription.",
+            HTTP_STATUS.FORBIDDEN,
+            ERROR_MESSAGES.NO_FREE_TESTS,
           );
         }
       }
@@ -727,8 +745,8 @@ export class TestService {
 
       if (questions.length !== questionIds.length) {
         throw new ApiError(
-          500,
-          "Some pre-selected questions are missing or inactive",
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.PRESELECTED_QUESTIONS_MISSING,
         );
       }
 
@@ -752,7 +770,10 @@ export class TestService {
       });
 
       if (allQuestionIds.length < test.totalQuestions) {
-        throw new ApiError(500, "Not enough questions available for this test");
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.NOT_ENOUGH_QUESTIONS,
+        );
       }
 
       const selectedIds = allQuestionIds

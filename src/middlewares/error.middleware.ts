@@ -31,7 +31,16 @@ export const errorHandler = (
   } else if (err instanceof ZodError) {
     error = new ApiError(403, err.issues[0].message);
   } else if (err instanceof MulterError) {
-    error = new ApiError(400, err.message);
+    if (err.code === "LIMIT_FILE_SIZE") {
+      error = new ApiError(
+        400,
+        "File size too large. Max 2MB for images, 10MB for documents",
+      );
+    } else if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      error = new ApiError(400, `Unexpected file field: ${err.field}`);
+    } else {
+      error = new ApiError(400, `Upload error: ${err.message}`);
+    }
   } else if (err instanceof Error) {
     error = new ApiError(500, err.message);
   } else {
@@ -53,7 +62,14 @@ export const errorHandler = (
   }
 
   if (error instanceof MulterError) {
-    error = new ApiError(400, error.message);
+    if (error.code === "LIMIT_FILE_SIZE") {
+      error = new ApiError(
+        400,
+        "File size too large. Max 2MB for images, 10MB for documents",
+      );
+    } else {
+      error = new ApiError(400, `Upload error: ${error.message}`);
+    }
   }
 
   logger.error(`[${error.statusCode}] ${error.message}`);

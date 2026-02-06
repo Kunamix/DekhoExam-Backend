@@ -1,4 +1,5 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 
 interface SaveAnswerInput {
@@ -21,7 +22,10 @@ export class TestAttemptService {
     });
 
     if (!attempt || attempt.status !== "IN_PROGRESS") {
-      throw new ApiError(400, "Invalid attempt or test already submitted");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_ATTEMPT,
+      );
     }
 
     // ⏱ Time left calculation
@@ -75,7 +79,10 @@ export class TestAttemptService {
     });
 
     if (!attempt || attempt.status !== "IN_PROGRESS") {
-      throw new ApiError(400, "Cannot save answer. Test is not in progress.");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CANNOT_SAVE_ANSWER,
+      );
     }
 
     const existingAnswer = await prisma.testAttemptAnswer.findFirst({
@@ -114,7 +121,10 @@ export class TestAttemptService {
     });
 
     if (!attempt || attempt.status === "SUBMITTED") {
-      throw new ApiError(400, "Invalid attempt or already submitted");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_ATTEMPT_OR_SUBMITTED,
+      );
     }
 
     const userAnswers = await prisma.testAttemptAnswer.findMany({
@@ -184,7 +194,10 @@ export class TestAttemptService {
     });
 
     if (!attempt || attempt.status !== "SUBMITTED") {
-      throw new ApiError(400, "Result not available");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.RESULT_NOT_AVAILABLE,
+      );
     }
 
     const data = {
@@ -240,20 +253,23 @@ export class TestAttemptService {
     });
 
     if (!attempt) {
-      throw new ApiError(404, "Test attempt not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.TEST_ATTEMPT_NOT_FOUND,
+      );
     }
 
     if (attempt.userId !== currentUserId) {
       throw new ApiError(
-        403,
-        "You do not have permission to view this solution",
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_MESSAGES.NO_PERMISSION_VIEW_SOLUTION,
       );
     }
 
     if (attempt.status !== "SUBMITTED") {
       throw new ApiError(
-        400,
-        "Test is still in progress. Submit it to view solutions",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TEST_IN_PROGRESS,
       );
     }
 

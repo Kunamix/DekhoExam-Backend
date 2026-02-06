@@ -1,30 +1,43 @@
 import { Request, Response } from "express";
-import { asyncHandler,ApiResponse, ApiError } from "@/utils";
+import { asyncHandler, ApiResponse, ApiError } from "@/utils";
 import { paymentService } from "@/services/payment.service";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 
-export const getAllPayments = asyncHandler(async (req: Request, res: Response) => {
-  const { startDate, endDate } = req.query;
+export const getAllPayments = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { startDate, endDate } = req.query;
 
-  const payments = await paymentService.getAllPayments({
-    startDate: startDate as string,
-    endDate: endDate as string,
-  });
+    const payments = await paymentService.getAllPayments({
+      startDate: startDate as string,
+      endDate: endDate as string,
+    });
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, payments, "Payments fetched successfully"));
-});
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          payments,
+          SUCCESS_MESSAGES.PAYMENTS_FETCHED,
+        ),
+      );
+  },
+);
 
 export const getPaymentStats = asyncHandler(
   async (_req: Request, res: Response) => {
     const stats = await paymentService.getPaymentStats();
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, stats, "Payment statistics fetched successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          stats,
+          SUCCESS_MESSAGES.PAYMENT_STATS_FETCHED,
+        ),
       );
-  }
+  },
 );
 
 export const exportPayments = asyncHandler(
@@ -37,10 +50,13 @@ export const exportPayments = asyncHandler(
     });
 
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename=${result.filename}`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${result.filename}`,
+    );
 
-    return res.status(200).send(result.data);
-  }
+    return res.status(HTTP_STATUS.OK).send(result.data);
+  },
 );
 
 export const getPaymentById = asyncHandler(
@@ -49,25 +65,26 @@ export const getPaymentById = asyncHandler(
     const { id } = req.params;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const payment = await paymentService.getPaymentById(userId, id.toString());
 
-    return res.status(200).json(
-      new ApiResponse(200, payment, "Payment fetched successfully")
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          payment,
+          SUCCESS_MESSAGES.PAYMENT_FETCHED,
+        ),
+      );
+  },
 );
 
-export const refundPayment = asyncHandler(async (_req: Request, _res:Response) => {
-
-});
-
-
-
-
-
-
-
-
+export const refundPayment = asyncHandler(
+  async (_req: Request, _res: Response) => {},
+);

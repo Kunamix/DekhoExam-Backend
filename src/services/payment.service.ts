@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { ApiError } from "@/utils";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import logger from "@/logger/winston.logger";
 import { myEnvironment, prisma, razorpayInstance } from "@/configs";
 
@@ -24,7 +25,10 @@ interface GetPaymentsInput {
 export class PaymentService {
   async createPaymentOrder(userId: string, planId: string) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized: User information missing");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_USER_MISSING,
+      );
     }
 
     const plan = await prisma.subscriptionPlan.findUnique({
@@ -32,7 +36,10 @@ export class PaymentService {
     });
 
     if (!plan || !plan.isActive) {
-      throw new ApiError(404, "Subscription plan not found or inactive");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     const amountInPaisa = Math.round(Number(plan.price) * 100);
@@ -51,7 +58,10 @@ export class PaymentService {
       const order = await razorpayInstance.orders.create(options);
 
       if (!order) {
-        throw new ApiError(500, "Failed to create order with payment gateway");
+        throw new ApiError(
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_MESSAGES.PAYMENT_ORDER_FAILED,
+        );
       }
 
       await prisma.payment.create({
@@ -83,8 +93,8 @@ export class PaymentService {
     } catch (error) {
       logger.error("Razorpay order creation failed", error);
       throw new ApiError(
-        500,
-        "Something went wrong while initializing payment"
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        ERROR_MESSAGES.PAYMENT_INIT_FAILED,
       );
     }
   }
@@ -96,15 +106,17 @@ export class PaymentService {
     razorpay_signature,
   }: VerifyPaymentInput) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized: User information missing");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_USER_MISSING,
+      );
     }
 
-    if (
-      !razorpay_order_id ||
-      !razorpay_payment_id ||
-      !razorpay_signature
-    ) {
-      throw new ApiError(400, "Payment verification details missing");
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.PAYMENT_DETAILS_MISSING,
+      );
     }
 
     const paymentRecord = await prisma.payment.findFirst({
@@ -112,7 +124,10 @@ export class PaymentService {
     });
 
     if (!paymentRecord) {
-      throw new ApiError(404, "Payment record not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.PAYMENT_RECORD_NOT_FOUND,
+      );
     }
 
     // 🔁 Idempotency
@@ -140,7 +155,10 @@ export class PaymentService {
         },
       });
 
-      throw new ApiError(400, "Payment signature verification failed");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.PAYMENT_SIGNATURE_FAILED,
+      );
     }
 
     // ✅ Activate subscription
@@ -177,7 +195,7 @@ export class PaymentService {
     return { success: true };
   }
 
-   async handleWebhook({ event, payload, signature }: HandleWebhookInput) {
+  async handleWebhook({ event, payload, signature }: HandleWebhookInput) {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
 
     // Verify Webhook Signature
@@ -186,7 +204,10 @@ export class PaymentService {
     const digest = shasum.digest("hex");
 
     if (digest !== signature) {
-      throw new ApiError(400, "Invalid webhook signature");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_WEBHOOK_SIGNATURE,
+      );
     }
 
     const paymentEntity = payload.payment.entity;
@@ -239,8 +260,8 @@ export class PaymentService {
     return { status: "ok" };
   }
 
-  // all payments  
-   async getAllPayments({ startDate, endDate }: GetPaymentsInput) {
+  // all payments
+  async getAllPayments({ startDate, endDate }: GetPaymentsInput) {
     const dateFilter: any = {};
     if (startDate) {
       dateFilter.gte = new Date(startDate);
@@ -282,10 +303,13 @@ export class PaymentService {
     }));
   }
 
-  // all payments for user  
+  // all payments for user
   async getPaymentHistory(userId: string) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const payments = await prisma.payment.findMany({
@@ -299,7 +323,10 @@ export class PaymentService {
   // one payment for user
   async getPaymentById(userId: string, paymentId: string) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const payment = await prisma.payment.findFirst({
@@ -310,13 +337,16 @@ export class PaymentService {
     });
 
     if (!payment) {
-      throw new ApiError(404, "Payment not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.PAYMENT_NOT_FOUND,
+      );
     }
 
     return payment;
   }
 
-   async getPaymentStats() {
+  async getPaymentStats() {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const currentMonthEnd = new Date(
@@ -325,7 +355,7 @@ export class PaymentService {
       0,
       23,
       59,
-      59
+      59,
     );
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonthEnd = new Date(
@@ -334,7 +364,7 @@ export class PaymentService {
       0,
       23,
       59,
-      59
+      59,
     );
 
     // Total revenue
@@ -394,7 +424,7 @@ export class PaymentService {
     const revenueChange =
       prevRevenue > 0
         ? Number(
-            (((currentRevenue - prevRevenue) / prevRevenue) * 100).toFixed(2)
+            (((currentRevenue - prevRevenue) / prevRevenue) * 100).toFixed(2),
           )
         : 0;
 
@@ -495,7 +525,7 @@ export class PaymentService {
         p.paymentGateway,
         p.status,
         new Date(p.createdAt).toLocaleString("en-IN"),
-      ].join(",")
+      ].join(","),
     );
 
     const csv = [csvHeaders, ...csvRows].join("\n");

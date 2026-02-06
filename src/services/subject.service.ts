@@ -1,5 +1,6 @@
 import { prisma } from "@/configs";
 import { ApiError } from "@/utils";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 
 interface CreateSubjectInput {
   name: string;
@@ -37,7 +38,10 @@ export class SubjectService {
     });
 
     if (existingSubject) {
-      throw new ApiError(400, "Subject with this name already exists");
+      throw new ApiError(
+        HTTP_STATUS.CONFLICT,
+        ERROR_MESSAGES.SUBJECT_ALREADY_EXISTS,
+      );
     }
 
     const subject = await prisma.subject.create({
@@ -202,7 +206,10 @@ export class SubjectService {
     });
 
     if (!subject) {
-      throw new ApiError(404, "Subject not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     // Calculate total questions
@@ -229,7 +236,10 @@ export class SubjectService {
     });
 
     if (!subject) {
-      throw new ApiError(404, "Subject not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     // Check if name is being changed and if new name already exists
@@ -247,7 +257,10 @@ export class SubjectService {
       });
 
       if (existingSubject) {
-        throw new ApiError(400, "Subject with this name already exists");
+        throw new ApiError(
+          HTTP_STATUS.CONFLICT,
+          ERROR_MESSAGES.SUBJECT_ALREADY_EXISTS,
+        );
       }
     }
 
@@ -330,7 +343,10 @@ export class SubjectService {
     });
 
     if (!subject) {
-      throw new ApiError(404, "Subject not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     // Check for dependencies
@@ -359,7 +375,10 @@ export class SubjectService {
     });
 
     if (!subject) {
-      throw new ApiError(404, "Subject not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     const updatedSubject = await prisma.subject.update({
@@ -404,7 +423,10 @@ export class SubjectService {
     });
 
     if (!subject) {
-      throw new ApiError(404, "Subject not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     // Calculate statistics
@@ -460,7 +482,10 @@ export class SubjectService {
     });
 
     if (existingSubjects.length !== subjectIds.length) {
-      throw new ApiError(404, "One or more subjects not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     // Update display orders in a transaction

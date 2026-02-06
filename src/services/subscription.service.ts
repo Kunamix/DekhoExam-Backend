@@ -1,4 +1,5 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 
 interface GetAllSubscriptionPlansInput {
@@ -49,20 +50,23 @@ export class SubscriptionPlanService {
     displayOrder = 0,
   }: CreateSubscriptionPlanInput) {
     if (!name || !price || !durationDays || !type) {
-      throw new ApiError(400, "Name, price, duration, and type are required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.SUBSCRIPTION_FIELDS_REQUIRED,
+      );
     }
 
     if (type === "CATEGORY_SPECIFIC" && !categoryId) {
       throw new ApiError(
-        400,
-        "Category ID is required for category-specific plans",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_ID_REQUIRED_FOR_PLAN,
       );
     }
 
     if (type === "ALL_CATEGORIES" && categoryId) {
       throw new ApiError(
-        400,
-        "Category ID should not be provided for all-categories plans",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_ID_NOT_ALLOWED_FOR_PLAN,
       );
     }
 
@@ -72,7 +76,10 @@ export class SubscriptionPlanService {
       });
 
       if (!category) {
-        throw new ApiError(404, "Category not found");
+        throw new ApiError(
+          HTTP_STATUS.NOT_FOUND,
+          ERROR_MESSAGES.CATEGORY_NOT_FOUND,
+        );
       }
     }
 
@@ -185,7 +192,10 @@ export class SubscriptionPlanService {
     });
 
     if (!plan) {
-      throw new ApiError(404, "Subscription plan not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     return plan;
@@ -264,7 +274,10 @@ export class SubscriptionPlanService {
     });
 
     if (!plan) {
-      throw new ApiError(404, "Subscription plan not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     const updatedPlan = await prisma.subscriptionPlan.update({
@@ -292,7 +305,10 @@ export class SubscriptionPlanService {
     });
 
     if (!plan) {
-      throw new ApiError(404, "Subscription plan not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     const updatedPlan = await prisma.subscriptionPlan.update({
@@ -318,7 +334,10 @@ export class SubscriptionPlanService {
     });
 
     if (!plan) {
-      throw new ApiError(404, "Subscription plan not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBSCRIPTION_NOT_FOUND,
+      );
     }
 
     // If plan has subscribers → soft delete

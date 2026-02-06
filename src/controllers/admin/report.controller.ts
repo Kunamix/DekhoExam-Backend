@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler, ApiError, ApiResponse } from "@/utils";
 import { reportService } from "@/services/report.service";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 
 export const getAllReports = asyncHandler(
   async (req: Request, res: Response) => {
@@ -17,9 +18,15 @@ export const getAllReports = asyncHandler(
     });
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, result, "Reports retrieved successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.REPORTS_FETCHED,
+        ),
+      );
+  },
 );
 
 export const getReportStats = asyncHandler(
@@ -27,11 +34,15 @@ export const getReportStats = asyncHandler(
     const stats = await reportService.getReportStats();
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, stats, "Report statistics retrieved successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          stats,
+          SUCCESS_MESSAGES.REPORT_STATS_FETCHED,
+        ),
       );
-  }
+  },
 );
 
 export const getReportById = asyncHandler(
@@ -41,9 +52,15 @@ export const getReportById = asyncHandler(
     const report = await reportService.getReportById(id.toString());
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, report, "Report retrieved successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          report,
+          SUCCESS_MESSAGES.REPORT_FETCHED,
+        ),
+      );
+  },
 );
 
 export const updateReportStatus = asyncHandler(
@@ -52,19 +69,29 @@ export const updateReportStatus = asyncHandler(
     const { status } = req.body;
 
     if (!status) {
-      throw new ApiError(400, "Status is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.STATUS_REQUIRED,
+      );
     }
 
-    const updatedReport = await reportService.updateReportStatus(id.toString(), {
-      status,
-    });
+    const updatedReport = await reportService.updateReportStatus(
+      id.toString(),
+      {
+        status,
+      },
+    );
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, updatedReport, "Report status updated successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          updatedReport,
+          SUCCESS_MESSAGES.REPORT_STATUS_UPDATED,
+        ),
       );
-  }
+  },
 );
 
 export const deleteReport = asyncHandler(
@@ -74,7 +101,7 @@ export const deleteReport = asyncHandler(
     const result = await reportService.deleteReport(id.toString());
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, {}, result.message));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(new ApiResponse(HTTP_STATUS.OK, {}, result.message));
+  },
 );

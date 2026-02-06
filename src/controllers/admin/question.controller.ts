@@ -1,27 +1,30 @@
 import { Request, Response } from "express";
 import { asyncHandler, ApiError, ApiResponse } from "@/utils";
 import { questionService } from "@/services/question.service";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 
 export const createQuestion = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?.id;
     if (!userId) {
-      throw new ApiError(401, "Unauthorized");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
     }
 
     const {
       topicId,
       questionText,
-      questionImageUrl,
       option1,
       option2,
       option3,
       option4,
       correctOption,
       explanation,
-      explanationImageUrl,
       difficultyLevel,
     } = req.body;
+
+    const files = (req as any).files;
+    const questionImagePath = files?.questionImage?.[0]?.path;
+    const explanationImagePath = files?.explanationImage?.[0]?.path;
 
     if (
       !topicId ||
@@ -32,28 +35,37 @@ export const createQuestion = asyncHandler(
       !option4 ||
       !correctOption
     ) {
-      throw new ApiError(400, "All required fields must be provided");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.ALL_FIELDS_REQUIRED,
+      );
     }
 
     const question = await questionService.createQuestion({
       userId,
       topicId,
       questionText,
-      questionImageUrl,
+      questionImagePath,
       option1,
       option2,
       option3,
       option4,
       correctOption,
       explanation,
-      explanationImageUrl,
+      explanationImagePath,
       difficultyLevel,
     });
 
     return res
-      .status(201)
-      .json(new ApiResponse(201, question, "Question created successfully"));
-  }
+      .status(HTTP_STATUS.CREATED)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.CREATED,
+          question,
+          SUCCESS_MESSAGES.QUESTION_CREATED,
+        ),
+      );
+  },
 );
 
 export const getAllQuestions = asyncHandler(
@@ -79,9 +91,15 @@ export const getAllQuestions = asyncHandler(
     });
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, result, "Questions fetched successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.QUESTIONS_FETCHED,
+        ),
+      );
+  },
 );
 
 export const getQuestionById = asyncHandler(
@@ -91,9 +109,15 @@ export const getQuestionById = asyncHandler(
     const question = await questionService.getQuestionById(id.toString());
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, question, "Question fetched successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          question,
+          SUCCESS_MESSAGES.QUESTION_FETCHED,
+        ),
+      );
+  },
 );
 
 export const updateQuestion = asyncHandler(
@@ -101,38 +125,47 @@ export const updateQuestion = asyncHandler(
     const { id } = req.params;
     const {
       questionText,
-      questionImageUrl,
       option1,
       option2,
       option3,
       option4,
       correctOption,
       explanation,
-      explanationImageUrl,
       difficultyLevel,
       isActive,
     } = req.body;
 
-    const updatedQuestion = await questionService.updateQuestion(id.toString(), {
-      questionText,
-      questionImageUrl,
-      option1,
-      option2,
-      option3,
-      option4,
-      correctOption,
-      explanation,
-      explanationImageUrl,
-      difficultyLevel,
-      isActive,
-    });
+    const files = (req as any).files;
+    const questionImagePath = files?.questionImage?.[0]?.path;
+    const explanationImagePath = files?.explanationImage?.[0]?.path;
+
+    const updatedQuestion = await questionService.updateQuestion(
+      id.toString(),
+      {
+        questionText,
+        questionImagePath,
+        option1,
+        option2,
+        option3,
+        option4,
+        correctOption,
+        explanation,
+        explanationImagePath,
+        difficultyLevel,
+        isActive,
+      },
+    );
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, updatedQuestion, "Question updated successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          updatedQuestion,
+          SUCCESS_MESSAGES.QUESTION_UPDATED,
+        ),
       );
-  }
+  },
 );
 
 export const deleteQuestion = asyncHandler(
@@ -141,22 +174,27 @@ export const deleteQuestion = asyncHandler(
 
     const result = await questionService.deleteQuestion(id.toString());
 
-    return res.status(200).json(new ApiResponse(200, {}, result.message));
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(new ApiResponse(HTTP_STATUS.OK, {}, result.message));
+  },
 );
 
 export const bulkUploadQuestions = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?.id;
     if (!userId) {
-      throw new ApiError(401, "Unauthorized");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
     }
 
     const file = (req as any).file;
     const { topicId } = req.body;
 
     if (!topicId) {
-      throw new ApiError(400, "Topic ID is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TOPIC_ID_REQUIRED,
+      );
     }
 
     const result = await questionService.bulkUploadQuestions({
@@ -165,14 +203,16 @@ export const bulkUploadQuestions = asyncHandler(
       topicId,
     });
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        result,
-        `Bulk upload completed. ${result.successfullyCreated} questions created, ${result.failedRows} failed.`
-      )
-    );
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          `Bulk upload completed. ${result.successfullyCreated} questions created, ${result.failedRows} failed.`,
+        ),
+      );
+  },
 );
 
 export const getQuestionStats = asyncHandler(
@@ -185,9 +225,13 @@ export const getQuestionStats = asyncHandler(
     });
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, stats, "Question statistics fetched successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          stats,
+          SUCCESS_MESSAGES.QUESTION_STATS_FETCHED,
+        ),
       );
-  }
+  },
 );

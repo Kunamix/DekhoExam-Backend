@@ -8,7 +8,7 @@ import {
   toggleStatus,
   reorderSubjects,
 } from "@/controllers/admin/subject.controller";
-import { upload, verifyAdmin, verifyToken } from "@/middlewares";
+import { imageUpload, verifyAdmin, verifyToken } from "@/middlewares";
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.post(
   "/",
   verifyToken,
   verifyAdmin,
-  upload.single("image"),
+  imageUpload.single("image"),
   createSubject,
 );
 router.get("/", verifyToken, verifyAdmin, getAllSubjects);
@@ -25,7 +25,7 @@ router.put(
   "/:id",
   verifyToken,
   verifyAdmin,
-  upload.single("image"),
+  imageUpload.single("image"),
   updateSubject,
 );
 router.patch("/:id/toggle-status", verifyToken, verifyAdmin, toggleStatus);

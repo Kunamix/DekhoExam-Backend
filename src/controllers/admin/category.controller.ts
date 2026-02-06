@@ -1,48 +1,61 @@
 import { Request, Response } from "express";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
 import { categoryService } from "@/services/category.service";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 
 export const createCategory = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = (req as any).user?.id;
-    const { name, description, imageUrl, displayOrder } = req.body;
+    const { name, description, displayOrder } = req.body;
+    const file = (req as any).file;
 
     if (!userId) {
-      throw new ApiError(401, "Unauthorized");
+      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
     }
 
     const category = await categoryService.create({
       name,
       description,
-      imageUrl,
+      imagePath: file?.path, // Pass file path if image was uploaded
       displayOrder,
       createdById: userId,
     });
 
     return res
-      .status(201)
-      .json(new ApiResponse(201, category, "Category created successfully"));
+      .status(HTTP_STATUS.CREATED)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.CREATED,
+          category,
+          SUCCESS_MESSAGES.CATEGORY_CREATED,
+        ),
+      );
   },
 );
 
 export const updateCategory = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, description, imageUrl, displayOrder, isActive } = req.body;
+    const { name, description, displayOrder, isActive } = req.body;
+    const file = (req as any).file;
 
     const updatedCategory = await categoryService.update({
       id: id.toString(),
       name,
       description,
-      imageUrl,
+      imagePath: file?.path, // Pass file path if new image was uploaded
       displayOrder,
       isActive,
     });
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, updatedCategory, "Category updated successfully"),
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          updatedCategory,
+          SUCCESS_MESSAGES.CATEGORY_UPDATED,
+        ),
       );
   },
 );
@@ -59,8 +72,14 @@ export const getAllCategories = asyncHandler(
     });
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, result, "Categories fetched successfully"));
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.CATEGORIES_FETCHED,
+        ),
+      );
   },
 );
 
@@ -71,8 +90,14 @@ export const getCategoryById = asyncHandler(
     const category = await categoryService.getCategoryById(id.toString());
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, category, "Category fetched successfully"));
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          category,
+          SUCCESS_MESSAGES.CATEGORY_FETCHED,
+        ),
+      );
   },
 );
 
@@ -83,10 +108,10 @@ export const toggleStatus = asyncHandler(
     const category = await categoryService.toggleCategoryStatus(id.toString());
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
         new ApiResponse(
-          200,
+          HTTP_STATUS.OK,
           category,
           `Category ${category.isActive ? "activated" : "deactivated"} successfully`,
         ),
@@ -100,21 +125,26 @@ export const assignSubjects = asyncHandler(
     const { subjects } = req.body;
 
     if (!categoryId) {
-      throw new ApiError(400, "Category ID is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORY_ID_REQUIRED,
+      );
     }
 
     const result = await categoryService.assignSubjects({
-      categoryId:categoryId.toString(),
+      categoryId: categoryId.toString(),
       subjects,
     });
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        result,
-        "Subjects assigned to category successfully",
-      ),
-    );
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.SUBJECTS_ASSIGNED,
+        ),
+      );
   },
 );
 
@@ -122,12 +152,12 @@ export const deleteCategory = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    await categoryService.delete({ id:id.toString() });
+    await categoryService.delete({ id: id.toString() });
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, {}, "Category deleted successfully"),
+        new ApiResponse(HTTP_STATUS.OK, {}, SUCCESS_MESSAGES.CATEGORY_DELETED),
       );
   },
 );
@@ -137,15 +167,22 @@ export const reorderCategories = asyncHandler(
     const { categories } = req.body;
 
     if (!categories || !Array.isArray(categories)) {
-      throw new ApiError(400, "Categories array is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.CATEGORIES_ARRAY_REQUIRED,
+      );
     }
 
     const result = await categoryService.reorderCategories(categories);
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, result, "Categories reordered successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.CATEGORIES_REORDERED,
+        ),
       );
-  }
+  },
 );

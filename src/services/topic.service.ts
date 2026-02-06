@@ -1,4 +1,5 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 
 interface CreateTopicInput {
@@ -43,8 +44,8 @@ export class TopicService {
   }: CreateTopicInput) {
     if (!subjectId || !name) {
       throw new ApiError(
-        400,
-        "Subject ID and topic name are required",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TOPIC_AND_NAME_REQUIRED,
       );
     }
 
@@ -53,7 +54,10 @@ export class TopicService {
     });
 
     if (!subject) {
-      throw new ApiError(404, "Subject not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.SUBJECT_NOT_FOUND,
+      );
     }
 
     return prisma.topic.create({
@@ -106,10 +110,7 @@ export class TopicService {
         where,
         skip,
         take: limit,
-        orderBy: [
-          { displayOrder: "asc" },
-          { createdAt: "desc" },
-        ],
+        orderBy: [{ displayOrder: "asc" }, { createdAt: "desc" }],
         include: {
           subject: {
             select: { id: true, name: true },
@@ -155,7 +156,7 @@ export class TopicService {
     });
 
     if (!topic) {
-      throw new ApiError(404, "Topic not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TOPIC_NOT_FOUND);
     }
 
     return topic;
@@ -177,7 +178,7 @@ export class TopicService {
     });
 
     if (!topic) {
-      throw new ApiError(404, "Topic not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TOPIC_NOT_FOUND);
     }
 
     return prisma.topic.update({
@@ -208,13 +209,13 @@ export class TopicService {
     });
 
     if (!topic) {
-      throw new ApiError(404, "Topic not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TOPIC_NOT_FOUND);
     }
 
     if (topic._count.questions > 0) {
       throw new ApiError(
-        400,
-        "Cannot delete topic with associated questions. Please delete or reassign questions first.",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.TOPIC_HAS_QUESTIONS,
       );
     }
 

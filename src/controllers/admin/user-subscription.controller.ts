@@ -1,30 +1,29 @@
 import { Request, Response } from "express";
 import { ApiResponse, asyncHandler } from "@/utils";
 import { userSubscriptionService } from "@/services/user-subscription.service";
+import { HTTP_STATUS, SUCCESS_MESSAGES } from "@/constants";
 
 export const createUserSubscription = asyncHandler(
   async (req: Request, res: Response) => {
-    const { userId, planId, startDate, durationDays } =
-      req.body;
+    const { userId, planId, startDate, durationDays } = req.body;
 
-    const subscription =
-      await userSubscriptionService.create({
-        userId,
-        planId,
-        startDate: startDate ? new Date(startDate) : undefined,
-        durationDays:
-          durationDays !== undefined
-            ? Number(durationDays)
-            : undefined,
-      });
+    const subscription = await userSubscriptionService.create({
+      userId,
+      planId,
+      startDate: startDate ? new Date(startDate) : undefined,
+      durationDays:
+        durationDays !== undefined ? Number(durationDays) : undefined,
+    });
 
-    return res.status(201).json(
-      new ApiResponse(
-        201,
-        subscription,
-        "User subscription created successfully",
-      ),
-    );
+    return res
+      .status(HTTP_STATUS.CREATED)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.CREATED,
+          subscription,
+          SUCCESS_MESSAGES.USER_SUBSCRIPTION_CREATED,
+        ),
+      );
   },
 );
 
@@ -39,26 +38,24 @@ export const getAllUserSubscriptions = asyncHandler(
       categoryId,
     } = req.query;
 
-    const result =
-      await userSubscriptionService.getAll({
-        page: Number(page),
-        limit: Number(limit),
-        isActive:
-          isActive !== undefined
-            ? isActive === "true"
-            : undefined,
-        userId: userId as string | undefined,
-        planId: planId as string | undefined,
-        categoryId: categoryId as string | undefined,
-      });
+    const result = await userSubscriptionService.getAll({
+      page: Number(page),
+      limit: Number(limit),
+      isActive: isActive !== undefined ? isActive === "true" : undefined,
+      userId: userId as string | undefined,
+      planId: planId as string | undefined,
+      categoryId: categoryId as string | undefined,
+    });
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        result,
-        "User subscriptions fetched successfully",
-      ),
-    );
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.USER_SUBSCRIPTIONS_FETCHED,
+        ),
+      );
   },
 );
 
@@ -73,13 +70,15 @@ export const extendSubscription = asyncHandler(
         Number(additionalDays),
       );
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        updatedSubscription,
-        `Subscription extended by ${additionalDays} days`,
-      ),
-    );
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          updatedSubscription,
+          `Subscription extended by ${additionalDays} days`,
+        ),
+      );
   },
 );
 
@@ -87,15 +86,16 @@ export const cancelSubscription = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const subscription =
-      await userSubscriptionService.cancel(id.toString());
+    const subscription = await userSubscriptionService.cancel(id.toString());
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        subscription,
-        "Subscription cancelled successfully",
-      ),
-    );
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          subscription,
+          SUCCESS_MESSAGES.SUBSCRIPTION_CANCELLED,
+        ),
+      );
   },
 );

@@ -1,5 +1,5 @@
 import { prisma } from "@/configs";
-
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 import { authHelper } from "@/utils/auth-helper.util";
 
@@ -28,11 +28,17 @@ interface GetAllUsersAdvancedInput {
 export class UserService {
   async updateProfile({ userId, name, email }: UpdateProfileInput) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     if (!name && !email) {
-      throw new ApiError(400, "Please provide a name or email to update");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.PROVIDE_NAME_OR_EMAIL,
+      );
     }
 
     const dataToUpdate: any = {};
@@ -44,7 +50,10 @@ export class UserService {
     if (email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
-        throw new ApiError(400, "Invalid email format");
+        throw new ApiError(
+          HTTP_STATUS.BAD_REQUEST,
+          ERROR_MESSAGES.INVALID_EMAIL_FORMAT,
+        );
       }
 
       const existingUser = await prisma.user.findUnique({
@@ -53,8 +62,8 @@ export class UserService {
 
       if (existingUser && existingUser.id !== userId) {
         throw new ApiError(
-          409,
-          "Email is already associated with another account",
+          HTTP_STATUS.CONFLICT,
+          ERROR_MESSAGES.EMAIL_ALREADY_EXISTS,
         );
       }
 
@@ -85,11 +94,17 @@ export class UserService {
     newPassword,
   }: UpdatePasswordInput) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     if (!newPassword) {
-      throw new ApiError(400, "New password is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.NEW_PASSWORD_REQUIRED,
+      );
     }
 
     const user = await prisma.user.findUnique({
@@ -101,12 +116,15 @@ export class UserService {
     });
 
     if (!user) {
-      throw new ApiError(404, "User not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     if (user.password) {
       if (!currentPassword) {
-        throw new ApiError(400, "Current password is required");
+        throw new ApiError(
+          HTTP_STATUS.BAD_REQUEST,
+          ERROR_MESSAGES.CURRENT_PASSWORD_REQUIRED,
+        );
       }
 
       const isMatch = await authHelper.verifyHash(
@@ -115,7 +133,10 @@ export class UserService {
       );
 
       if (!isMatch) {
-        throw new ApiError(401, "Current password is incorrect");
+        throw new ApiError(
+          HTTP_STATUS.UNAUTHORIZED,
+          ERROR_MESSAGES.CURRENT_PASSWORD_INCORRECT,
+        );
       }
     }
 
@@ -250,7 +271,7 @@ export class UserService {
     });
 
     if (!user) {
-      throw new ApiError(404, "User not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     const { password, ...safeUser } = user as any;
@@ -262,11 +283,12 @@ export class UserService {
       where: { id },
     });
 
-    if (!user) throw new ApiError(404, "User not found");
+    if (!user)
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     if (user.role === "ADMIN") {
       throw new ApiError(
-        403,
-        "Cannot ban admin users",
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_MESSAGES.CANNOT_BAN_ADMIN,
       );
     }
 
@@ -284,9 +306,7 @@ export class UserService {
     await prisma.auditLog.create({
       data: {
         userId: adminId,
-        action: updated.isActive
-          ? "USER_UNBANNED"
-          : "USER_BANNED",
+        action: updated.isActive ? "USER_UNBANNED" : "USER_BANNED",
         entity: "USER",
         entityId: id,
       },
@@ -306,11 +326,12 @@ export class UserService {
       where: { id },
     });
 
-    if (!user) throw new ApiError(404, "User not found");
+    if (!user)
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     if (user.role === "ADMIN") {
       throw new ApiError(
-        403,
-        "Cannot delete admin users",
+        HTTP_STATUS.FORBIDDEN,
+        ERROR_MESSAGES.CANNOT_DELETE_ADMIN,
       );
     }
 
@@ -331,7 +352,8 @@ export class UserService {
       where: { id },
     });
 
-    if (!user) throw new ApiError(404, "User not found");
+    if (!user)
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
 
     const updated = await prisma.user.update({
       where: { id },
@@ -398,9 +420,7 @@ export class UserService {
       prisma.user.count({
         where: {
           createdAt: {
-            gte: new Date(
-              Date.now() - 30 * 24 * 60 * 60 * 1000,
-            ),
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
           },
         },
       }),
@@ -420,8 +440,8 @@ export class UserService {
   async search(query: string, limit = 10) {
     if (!query || query.length < 2) {
       throw new ApiError(
-        400,
-        "Search query must be at least 2 characters",
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.SEARCH_QUERY_TOO_SHORT,
       );
     }
 

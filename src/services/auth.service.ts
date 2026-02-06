@@ -1,5 +1,5 @@
 import { myEnvironment, prisma } from "@/configs";
-
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 import { authHelper } from "@/utils/auth-helper.util";
 
@@ -14,7 +14,10 @@ interface VerifyOtpInput {
 export class AuthService {
   async login(phoneNumber: string) {
     if (!phoneNumber) {
-      throw new ApiError(400, "Please provide phone number");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.PHONE_NUMBER_REQUIRED,
+      );
     }
 
     // 1. Clear old OTPs
@@ -64,7 +67,10 @@ export class AuthService {
     ipAddress,
   }: VerifyOtpInput) {
     if (!token) {
-      throw new ApiError(401, "Verification token is missing");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.OTP_TOKEN_MISSING,
+      );
     }
 
     let decoded: any;
@@ -74,7 +80,10 @@ export class AuthService {
         myEnvironment.OTP_VERIFY_SECRET as string,
       );
     } catch {
-      throw new ApiError(401, "Session expired. Please request a new OTP");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.OTP_REQUEST_NEW,
+      );
     }
 
     const { otpId, phoneNumber } = decoded;
@@ -84,19 +93,22 @@ export class AuthService {
     });
 
     if (!otpRecord) {
-      throw new ApiError(400, "Invalid request or OTP expired");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_REQUEST_OR_OTP,
+      );
     }
 
     if (new Date() > otpRecord.expiresAt) {
       await prisma.oTP.delete({ where: { id: otpId } });
-      throw new ApiError(400, "OTP has expired");
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.OTP_EXPIRED);
     }
 
     if (otpRecord.attempts >= 3) {
       await prisma.oTP.delete({ where: { id: otpId } });
       throw new ApiError(
-        429,
-        "Too many failed attempts. Please request a new OTP",
+        HTTP_STATUS.TOO_MANY_REQUESTS,
+        ERROR_MESSAGES.TOO_MANY_OTP_ATTEMPTS,
       );
     }
 
@@ -105,7 +117,7 @@ export class AuthService {
         where: { id: otpId },
         data: { attempts: { increment: 1 } },
       });
-      throw new ApiError(400, "Invalid OTP code");
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.INVALID_OTP);
     }
 
     const deviceType = /mobile/i.test(userAgent) ? "MOBILE" : "WEB";
@@ -128,8 +140,8 @@ export class AuthService {
         } else {
           if (!user.isActive) {
             throw new ApiError(
-              403,
-              "Your account has been deactivated. Contact Admin",
+              HTTP_STATUS.FORBIDDEN,
+              ERROR_MESSAGES.ACCOUNT_DEACTIVATED,
             );
           }
 
@@ -205,7 +217,10 @@ export class AuthService {
 
   async getMe(userId: string) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const user = await prisma.user.findUnique({
@@ -227,7 +242,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new ApiError(404, "User not found");
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     return user;

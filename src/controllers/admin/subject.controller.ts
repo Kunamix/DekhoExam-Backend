@@ -1,13 +1,17 @@
 import { Request, Response } from "express";
 import { asyncHandler, ApiError, ApiResponse } from "@/utils";
 import { subjectService } from "@/services/subject.service";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 
 export const createSubject = asyncHandler(
   async (req: Request, res: Response) => {
     const { name, description, imageUrl, displayOrder } = req.body;
 
     if (!name) {
-      throw new ApiError(400, "Subject name is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.SUBJECT_NAME_REQUIRED,
+      );
     }
 
     const subject = await subjectService.createSubject({
@@ -18,9 +22,15 @@ export const createSubject = asyncHandler(
     });
 
     return res
-      .status(201)
-      .json(new ApiResponse(201, subject, "Subject created successfully"));
-  }
+      .status(HTTP_STATUS.CREATED)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.CREATED,
+          subject,
+          SUCCESS_MESSAGES.SUBJECT_CREATED,
+        ),
+      );
+  },
 );
 
 export const updateSubject = asyncHandler(
@@ -37,11 +47,15 @@ export const updateSubject = asyncHandler(
     });
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, updatedSubject, "Subject updated successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          updatedSubject,
+          SUCCESS_MESSAGES.SUBJECT_UPDATED,
+        ),
       );
-  }
+  },
 );
 
 export const getAllSubjects = asyncHandler(
@@ -57,9 +71,15 @@ export const getAllSubjects = asyncHandler(
     });
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, result, "Subjects fetched successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.SUBJECTS_FETCHED,
+        ),
+      );
+  },
 );
 
 export const getSubjectById = asyncHandler(
@@ -69,12 +89,16 @@ export const getSubjectById = asyncHandler(
     const subject = await subjectService.getSubjectById(id.toString());
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, subject, "Subject fetched successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          subject,
+          SUCCESS_MESSAGES.SUBJECT_FETCHED,
+        ),
+      );
+  },
 );
-
-
 
 export const deleteSubject = asyncHandler(
   async (req: Request, res: Response) => {
@@ -82,26 +106,30 @@ export const deleteSubject = asyncHandler(
 
     const result = await subjectService.deleteSubject(id.toString());
 
-    return res.status(200).json(new ApiResponse(200, {}, result.message));
-  }
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(new ApiResponse(HTTP_STATUS.OK, {}, result.message));
+  },
 );
 
 export const toggleSubjectStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const updatedSubject = await subjectService.toggleSubjectStatus(id.toString());
+    const updatedSubject = await subjectService.toggleSubjectStatus(
+      id.toString(),
+    );
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
         new ApiResponse(
-          200,
+          HTTP_STATUS.OK,
           updatedSubject,
-          `Subject ${updatedSubject.isActive ? "activated" : "deactivated"} successfully`
-        )
+          `Subject ${updatedSubject.isActive ? "activated" : "deactivated"} successfully`,
+        ),
       );
-  }
+  },
 );
 
 export const getSubjectStats = asyncHandler(
@@ -111,11 +139,15 @@ export const getSubjectStats = asyncHandler(
     const stats = await subjectService.getSubjectStats(id.toString());
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(200, stats, "Subject statistics fetched successfully")
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          stats,
+          SUCCESS_MESSAGES.SUBJECT_STATS_FETCHED,
+        ),
       );
-  }
+  },
 );
 
 export const toggleStatus = asyncHandler(
@@ -125,15 +157,15 @@ export const toggleStatus = asyncHandler(
     const subject = await subjectService.toggleSubjectStatus(id.toString());
 
     return res
-      .status(200)
+      .status(HTTP_STATUS.OK)
       .json(
         new ApiResponse(
-          200,
+          HTTP_STATUS.OK,
           subject,
-          `Subject ${subject.isActive ? "activated" : "deactivated"} successfully`
-        )
+          `Subject ${subject.isActive ? "activated" : "deactivated"} successfully`,
+        ),
       );
-  }
+  },
 );
 
 export const reorderSubjects = asyncHandler(
@@ -141,13 +173,22 @@ export const reorderSubjects = asyncHandler(
     const { subjects } = req.body;
 
     if (!subjects || !Array.isArray(subjects)) {
-      throw new ApiError(400, "Subjects array is required");
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.SUBJECTS_ARRAY_REQUIRED,
+      );
     }
 
     const result = await subjectService.reorderSubjects(subjects);
 
     return res
-      .status(200)
-      .json(new ApiResponse(200, result, "Subjects reordered successfully"));
-  }
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.SUBJECTS_REORDERED,
+        ),
+      );
+  },
 );

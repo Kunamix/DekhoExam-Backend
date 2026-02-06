@@ -1,4 +1,5 @@
 import { prisma } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 
 interface GetAllAuditLogsInput {
@@ -77,7 +78,7 @@ export class AuditLogService {
             select: {
               id: true,
               email: true,
-              name: true
+              name: true,
             },
           },
         },
@@ -104,14 +105,17 @@ export class AuditLogService {
           select: {
             id: true,
             email: true,
-            name: true
+            name: true,
           },
         },
       },
     });
 
     if (!auditLog) {
-      throw new ApiError(404, "Audit log not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.AUDIT_LOG_NOT_FOUND,
+      );
     }
 
     return auditLog;
@@ -144,7 +148,7 @@ export class AuditLogService {
         user: {
           select: {
             email: true,
-            name:true
+            name: true,
           },
         },
       },
@@ -178,7 +182,7 @@ export class AuditLogService {
       const csvContent = [
         headers.join(","),
         ...rows.map((row) =>
-          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
         ),
       ].join("\n");
 

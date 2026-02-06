@@ -1,10 +1,14 @@
 import { prisma } from "@/configs";
 import { ApiError } from "@/utils";
+import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 
 export class NotificationService {
   async getNotifications(userId: string) {
     if (!userId) {
-      throw new ApiError(401, "Unauthorized request");
+      throw new ApiError(
+        HTTP_STATUS.UNAUTHORIZED,
+        ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+      );
     }
 
     const notifications = await prisma.notification.findMany({
@@ -24,7 +28,10 @@ export class NotificationService {
     });
 
     if (!notification) {
-      throw new ApiError(404, "Notification not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.NOTIFICATION_NOT_FOUND,
+      );
     }
 
     await prisma.notification.update({
@@ -54,7 +61,10 @@ export class NotificationService {
     });
 
     if (!notification) {
-      throw new ApiError(404, "Notification not found");
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        ERROR_MESSAGES.NOTIFICATION_NOT_FOUND,
+      );
     }
 
     await prisma.notification.delete({

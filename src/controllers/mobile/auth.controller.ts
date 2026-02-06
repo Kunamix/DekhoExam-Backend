@@ -1,4 +1,5 @@
 import { myEnvironment } from "@/configs";
+import { HTTP_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/constants";
 import { authService } from "@/services";
 import { ApiError, ApiResponse, asyncHandler } from "@/utils";
 import { Request, Response } from "express";
@@ -15,21 +16,23 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     maxAge: 5 * 60 * 1000,
   });
 
-  return res.status(200).json(
-    new ApiResponse(200, data, "OTP sent successfully")
-  );
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, data, SUCCESS_MESSAGES.OTP_SENT));
 });
 
 export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   const { otpCode } = req.body;
 
   if (!otpCode) {
-    throw new ApiError(400, "OTP code is required");
+    throw new ApiError(
+      HTTP_STATUS.BAD_REQUEST,
+      ERROR_MESSAGES.OTP_CODE_REQUIRED,
+    );
   }
 
   const token =
-    req.headers.authorization?.split(" ")[1] ||
-    req.cookies?.verificationToken;
+    req.headers.authorization?.split(" ")[1] || req.cookies?.verificationToken;
 
   const deviceId =
     req.headers["x-device-id"]?.toString() ??
@@ -38,14 +41,13 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
 
   const userAgent = req.headers["user-agent"] ?? "unknown";
 
-  const { user, accessToken, refreshToken } =
-    await authService.verifyOTP({
-      otpCode,
-      token,
-      deviceId,
-      userAgent,
-      ipAddress: req.ip,
-    });
+  const { user, accessToken, refreshToken } = await authService.verifyOTP({
+    otpCode,
+    token,
+    deviceId,
+    userAgent,
+    ipAddress: req.ip,
+  });
 
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
@@ -61,13 +63,15 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      { user, accessToken, refreshToken },
-      "User verified and logged in successfully"
-    )
-  );
+  return res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        { user, accessToken, refreshToken },
+        SUCCESS_MESSAGES.OTP_VERIFIED,
+      ),
+    );
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
@@ -81,24 +85,35 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
     secure: process.env.NODE_ENV === "production",
   };
   return res
-    .status(200)
+    .status(HTTP_STATUS.OK)
     .clearCookie("accessToken", cookieOptions)
     .clearCookie("refreshToken", cookieOptions)
-    .json(new ApiResponse(200, {}, "User logged out successfully"));
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, {}, SUCCESS_MESSAGES.USER_LOGGED_OUT),
+    );
 });
 
 export const getMe = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
 
   if (!userId) {
-    throw new ApiError(401, "Unauthorized request");
+    throw new ApiError(
+      HTTP_STATUS.UNAUTHORIZED,
+      ERROR_MESSAGES.UNAUTHORIZED_REQUEST,
+    );
   }
 
   const user = await authService.getMe(userId);
 
   return res
-    .status(200)
-    .json(new ApiResponse(200, user, "User profile fetched successfully"));
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        user,
+        SUCCESS_MESSAGES.USER_PROFILE_FETCHED,
+      ),
+    );
 });
 
 // export const updateProfile = asyncHandler(
