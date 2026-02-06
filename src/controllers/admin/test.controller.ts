@@ -46,7 +46,6 @@ export const createTest = asyncHandler(async (req: Request, res: Response) => {
     durationMinutes,
     positiveMarks,
     negativeMarks,
-    isPaid,
     testNumber,
   } = req.body;
 
@@ -60,7 +59,6 @@ export const createTest = asyncHandler(async (req: Request, res: Response) => {
       durationMinutes !== undefined ? Number(durationMinutes) : undefined,
     positiveMarks,
     negativeMarks,
-    isPaid,
     testNumber: Number(testNumber),
   });
 

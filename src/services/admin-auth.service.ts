@@ -234,6 +234,22 @@ export class AdminAuthService {
 
     const admin = await prisma.user.findUnique({
       where: { phoneNumber: decoded.phoneNumber },
+      select: {
+        id: true,
+        phoneNumber: true,
+        email: true,
+        // password excluded!
+        name: true,
+        avatar: true,
+        role: true,
+        isActive: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        freeTestsUsed: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!admin || admin.role !== "ADMIN") {
@@ -390,6 +406,22 @@ export class AdminAuthService {
 
     const admin = await prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        phoneNumber: true,
+        email: true,
+        // password excluded!
+        name: true,
+        avatar: true,
+        role: true,
+        isActive: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        freeTestsUsed: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!admin || admin.role !== "ADMIN") {
