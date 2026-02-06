@@ -53,6 +53,9 @@ interface UpdateQuestionInput {
   explanationImagePath?: string; // Local file path from multer
   difficultyLevel?: DifficultyLevel;
   isActive?: boolean;
+  removeImageQuestion?: boolean; // Flag to delete question image
+  removeImageExplanation?: boolean; // Flag to delete explanation image
+  displayOrder?: number;
 }
 
 interface BulkUploadInput {
@@ -315,18 +318,31 @@ export class QuestionService {
       );
     }
 
-    let cloudinaryQuestionImageUrl = data.questionImageUrl;
-    let cloudinaryExplanationImageUrl = data.explanationImageUrl;
-    let oldQuestionImagePublicId: string | null = null;
-    let oldExplanationImagePublicId: string | null = null;
+    // Initialize with existing or provided URLs
+    let cloudinaryQuestionImageUrl = question.questionImageUrl;
+    let cloudinaryExplanationImageUrl = question.explanationImageUrl;
 
-    // Handle question image update
-    if (data.questionImagePath) {
-      // Extract public_id from old image for deletion
+    // Handle question image logic
+    if (data.removeImageQuestion) {
+      // User wants to delete the question image
       if (question.questionImageUrl) {
-        oldQuestionImagePublicId = extractPublicIdFromUrl(
-          question.questionImageUrl,
-        );
+        const publicId = extractPublicIdFromUrl(question.questionImageUrl);
+        if (publicId) {
+          try {
+            await deleteImage(publicId);
+            cloudinaryQuestionImageUrl = null;
+          } catch (deleteError) {
+            console.warn("Failed to delete question image:", deleteError);
+          }
+        }
+      }
+      cloudinaryQuestionImageUrl = null;
+    } else if (data.questionImagePath) {
+      // User is uploading a new question image
+      let oldQuestionImagePublicId: string | null = null;
+      
+      if (question.questionImageUrl) {
+        oldQuestionImagePublicId = extractPublicIdFromUrl(question.questionImageUrl);
       }
 
       try {
@@ -337,7 +353,7 @@ export class QuestionService {
         );
         cloudinaryQuestionImageUrl = uploadResult.secure_url;
 
-        // Delete old question image from Cloudinary
+        // Delete old question image from Cloudinary after successful upload
         if (oldQuestionImagePublicId) {
           try {
             await deleteImage(oldQuestionImagePublicId);
@@ -356,14 +372,29 @@ export class QuestionService {
         );
       }
     }
+    // else: keep the existing image (cloudinaryQuestionImageUrl already set)
 
-    // Handle explanation image update
-    if (data.explanationImagePath) {
-      // Extract public_id from old image for deletion
+    // Handle explanation image logic
+    if (data.removeImageExplanation) {
+      // User wants to delete the explanation image
       if (question.explanationImageUrl) {
-        oldExplanationImagePublicId = extractPublicIdFromUrl(
-          question.explanationImageUrl,
-        );
+        const publicId = extractPublicIdFromUrl(question.explanationImageUrl);
+        if (publicId) {
+          try {
+            await deleteImage(publicId);
+            cloudinaryExplanationImageUrl = null;
+          } catch (deleteError) {
+            console.warn("Failed to delete explanation image:", deleteError);
+          }
+        }
+      }
+      cloudinaryExplanationImageUrl = null;
+    } else if (data.explanationImagePath) {
+      // User is uploading a new explanation image
+      let oldExplanationImagePublicId: string | null = null;
+      
+      if (question.explanationImageUrl) {
+        oldExplanationImagePublicId = extractPublicIdFromUrl(question.explanationImageUrl);
       }
 
       try {
@@ -374,15 +405,12 @@ export class QuestionService {
         );
         cloudinaryExplanationImageUrl = uploadResult.secure_url;
 
-        // Delete old explanation image from Cloudinary
+        // Delete old explanation image from Cloudinary after successful upload
         if (oldExplanationImagePublicId) {
           try {
             await deleteImage(oldExplanationImagePublicId);
           } catch (deleteError) {
-            console.warn(
-              "Failed to delete old explanation image:",
-              deleteError,
-            );
+            console.warn("Failed to delete old explanation image:", deleteError);
           }
         }
       } catch (error) {
@@ -393,6 +421,7 @@ export class QuestionService {
         );
       }
     }
+    // else: keep the existing image (cloudinaryExplanationImageUrl already set)
 
     const updatedQuestion = await prisma.question.update({
       where: { id },
@@ -408,7 +437,7 @@ export class QuestionService {
           : undefined,
         explanation: data.explanation,
         explanationImageUrl: cloudinaryExplanationImageUrl,
-        difficultyLevel: data.difficultyLevel || "MEDIUM",
+        difficultyLevel: data.difficultyLevel,
         isActive: data.isActive,
       },
     });
@@ -449,7 +478,7 @@ export class QuestionService {
       };
     }
 
-    // Delete images from Cloudinary before hard delete
+    // Delete both images from Cloudinary before hard delete
     const deletePromises = [];
 
     if (question.questionImageUrl) {
@@ -474,17 +503,17 @@ export class QuestionService {
       }
     }
 
-    // Wait for all deletions (continue even if some fail)
+    // Wait for all image deletions (continue even if some fail)
     await Promise.allSettled(deletePromises);
 
-    // Hard delete if no attempts
+    // Hard delete the question from database
     await prisma.question.delete({
       where: { id },
     });
 
     return {
       softDeleted: false,
-      message: "Question deleted successfully",
+      message: "Question deleted successfully along with all associated images",
     };
   }
 

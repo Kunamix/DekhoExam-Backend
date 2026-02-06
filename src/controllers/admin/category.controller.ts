@@ -17,7 +17,7 @@ export const createCategory = asyncHandler(
       name,
       description,
       imagePath: file?.path, // Pass file path if image was uploaded
-      displayOrder,
+      displayOrder:displayOrder ? parseInt(displayOrder) : 0,
       createdById: userId,
     });
 
@@ -33,19 +33,26 @@ export const createCategory = asyncHandler(
   },
 );
 
+
 export const updateCategory = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, description, displayOrder, isActive } = req.body;
+    const { name, description, displayOrder, isActive, removeImage } = req.body;
     const file = (req as any).file;
+
+    // Parse boolean and number fields from FormData
+    const parsedIsActive = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+    const parsedRemoveImage = removeImage === 'true' ? true : removeImage === 'false' ? false : false;
+    const parsedDisplayOrder = displayOrder ? parseInt(displayOrder) : undefined;
 
     const updatedCategory = await categoryService.update({
       id: id.toString(),
       name,
       description,
       imagePath: file?.path, // Pass file path if new image was uploaded
-      displayOrder,
-      isActive,
+      displayOrder: parsedDisplayOrder,
+      isActive: parsedIsActive,
+      removeImage: parsedRemoveImage, // Handle explicit image removal
     });
 
     return res
@@ -152,12 +159,16 @@ export const deleteCategory = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    await categoryService.delete({ id: id.toString() });
+    const result = await categoryService.delete({ id: id.toString() });
 
     return res
       .status(HTTP_STATUS.OK)
       .json(
-        new ApiResponse(HTTP_STATUS.OK, {}, SUCCESS_MESSAGES.CATEGORY_DELETED),
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          result,
+          SUCCESS_MESSAGES.CATEGORY_DELETED,
+        ),
       );
   },
 );

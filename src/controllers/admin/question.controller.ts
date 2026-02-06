@@ -133,7 +133,16 @@ export const updateQuestion = asyncHandler(
       explanation,
       difficultyLevel,
       isActive,
+      removeImageQuestion,
+      removeImageExplanation,
+      displayOrder
     } = req.body;
+
+    // Parse boolean and number fields from FormData
+    const parsedIsActive = isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+    const parsedRemoveImageQuestion = removeImageQuestion === 'true';
+    const parsedRemoveImageExplanation = removeImageExplanation === 'true';
+    const parsedDisplayOrder = displayOrder ? parseInt(displayOrder) : undefined;
 
     const files = (req as any).files;
     const questionImagePath = files?.questionImage?.[0]?.path;
@@ -152,7 +161,10 @@ export const updateQuestion = asyncHandler(
         explanation,
         explanationImagePath,
         difficultyLevel,
-        isActive,
+        isActive: parsedIsActive,
+        removeImageQuestion: parsedRemoveImageQuestion,
+        removeImageExplanation: parsedRemoveImageExplanation,
+        displayOrder: parsedDisplayOrder,
       },
     );
 
