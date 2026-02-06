@@ -18,7 +18,7 @@ import { Router } from "express";
 const router = Router();
 
 router.post(
-  "/",
+  "/create",
   verifyToken,
   verifyAdmin,
   imageUpload.fields([
