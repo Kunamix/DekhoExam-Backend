@@ -128,10 +128,10 @@ export const toggleStatus = asyncHandler(
 
 export const assignSubjects = asyncHandler(
   async (req: Request, res: Response) => {
-    const { categoryId } = req.params;
+    const { id } = req.params;
     const { subjects } = req.body;
 
-    if (!categoryId) {
+    if (!id) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
         ERROR_MESSAGES.CATEGORY_ID_REQUIRED,
@@ -139,7 +139,7 @@ export const assignSubjects = asyncHandler(
     }
 
     const result = await categoryService.assignSubjects({
-      categoryId: categoryId.toString(),
+      categoryId: id.toString(),
       subjects,
     });
 
