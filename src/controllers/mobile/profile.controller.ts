@@ -64,3 +64,67 @@ export const updatePassword = asyncHandler(
       );
   },
 );
+
+export const getTestRankings = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { testId } = req.params;
+    const userId = req.user?.id;
+    const { page = 1, limit = 50 } = req.query;
+
+    if (!testId) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_MESSAGES.INVALID_CREDENTIALS,
+      );
+    }
+
+    const rankings = await userService.getTestRankings({
+      testId:testId.toString(),
+      userId,
+      page: Number(page),
+      limit: Number(limit),
+    });
+
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          rankings,
+          SUCCESS_MESSAGES.DATA_FETCHED,
+        ),
+      );
+  },
+);
+
+export const getGlobalRankings = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+    const { 
+      page = 1, 
+      limit = 50, 
+      categoryId, 
+      subjectId,
+      period = 'all_time' // all_time, monthly, weekly
+    } = req.query;
+
+    const rankings = await userService.getGlobalRankings({
+      userId,
+      page: Number(page),
+      limit: Number(limit),
+      categoryId: categoryId as string | undefined,
+      subjectId: subjectId as string | undefined,
+      period: period as string,
+    });
+
+    return res
+      .status(HTTP_STATUS.OK)
+      .json(
+        new ApiResponse(
+          HTTP_STATUS.OK,
+          rankings,
+          SUCCESS_MESSAGES.DATA_FETCHED,
+        ),
+      );
+  },
+);

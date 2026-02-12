@@ -130,7 +130,7 @@ export const assignSubjects = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
     const { subjects } = req.body;
-
+console.log(id)
     if (!id) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,

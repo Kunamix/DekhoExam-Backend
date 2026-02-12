@@ -1,5 +1,6 @@
 import { prisma } from "@/configs";
 import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
+import { TestStatus } from "@/generated/prisma/enums";
 import { ApiError } from "@/utils";
 import { authHelper } from "@/utils/auth-helper.util";
 
@@ -23,6 +24,89 @@ interface GetAllUsersAdvancedInput {
   search?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+}
+
+interface GetTestRankingsParams {
+  testId: string;
+  userId?: string;
+  page: number;
+  limit: number;
+}
+
+interface RankingData {
+  userRank: {
+    rank: number | null;
+    totalMarks: number | null;
+    percentage: number | null;
+    attemptedCount: number;
+    correctCount: number;
+    incorrectCount: number;
+    userName: string;
+  } | null;
+  topRankers: Array<{
+    rank: number;
+    userId: string;
+    userName: string;
+    avatar: string | null;
+    totalMarks: number;
+    percentage: number;
+    attemptedCount: number;
+    correctCount: number;
+    incorrectCount: number;
+    submittedAt: Date;
+  }>;
+  totalParticipants: number;
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalRecords: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+interface GetGlobalRankingsParams {
+  userId?: string;
+  page: number;
+  limit: number;
+  categoryId?: string;
+  subjectId?: string;
+  period?: string;
+}
+
+interface GlobalRankingData {
+  userRank: {
+    rank: number | null;
+    totalTests: number;
+    averageScore: number;
+    totalMarks: number;
+    bestScore: number;
+    userName: string;
+    avatar: string | null;
+  } | null;
+  topRankers: Array<{
+    rank: number;
+    userId: string;
+    userName: string;
+    avatar: string | null;
+    totalTests: number;
+    averageScore: number;
+    totalMarks: number;
+    bestScore: number;
+    lastTestDate: Date | null;
+  }>;
+  stats: {
+    totalStudents: number;
+    totalTestsCompleted: number;
+    averageGlobalScore: number;
+  };
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalRecords: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
 }
 
 export class UserService {
@@ -478,6 +562,311 @@ export class UserService {
         isActive: true,
       },
     });
+  }
+
+  async getTestRankings({
+    testId,
+    userId,
+    page,
+    limit,
+  }: GetTestRankingsParams):Promise<RankingData> {
+    // Verify test exists
+    const test = await prisma.test.findUnique({
+      where: { id: testId, isActive: true },
+    });
+
+    if (!test) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
+    }
+
+    // Get total participants count
+    const totalParticipants = await prisma.testAttempt.count({
+      where: {
+        testId,
+        status: TestStatus.SUBMITTED,
+      },
+    });
+
+    // Calculate offset
+    const skip = (page - 1) * limit;
+
+    // Get rankings with user details
+    const rankings = await prisma.testAttempt.findMany({
+      where: {
+        testId,
+        status: TestStatus.SUBMITTED,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: [
+        { totalMarks: "desc" },
+        { submittedAt: "asc" }, // Earlier submission breaks tie
+      ],
+      skip,
+      take: limit,
+    });
+
+    // Get user's rank if userId is provided
+    let userRank = null;
+    if (userId) {
+      const userAttempt = await prisma.testAttempt.findFirst({
+        where: {
+          testId,
+          userId,
+          status: TestStatus.SUBMITTED,
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ totalMarks: "desc" }, { submittedAt: "asc" }],
+      });
+
+      if (userAttempt) {
+        // Calculate user's rank
+        const betterAttempts = await prisma.testAttempt.count({
+          where: {
+            testId,
+            status: TestStatus.SUBMITTED,
+            OR: [
+              { totalMarks: { gt: userAttempt.totalMarks || 0 } },
+              {
+                totalMarks: userAttempt.totalMarks,
+                submittedAt: { lt: userAttempt.submittedAt || new Date() },
+              },
+            ],
+          },
+        });
+
+        userRank = {
+          rank: betterAttempts + 1,
+          totalMarks: userAttempt.totalMarks?.toNumber() || null,
+          percentage: userAttempt.percentage?.toNumber() || null,
+          attemptedCount: userAttempt.attemptedCount,
+          correctCount: userAttempt.correctCount,
+          incorrectCount: userAttempt.incorrectCount,
+          userName: userAttempt.user.name || "Anonymous",
+        };
+      }
+    }
+
+    // Format top rankers
+    const topRankers = rankings.map((attempt, index) => ({
+      rank: skip + index + 1,
+      userId: attempt.userId,
+      userName: attempt.user.name || "Anonymous",
+      avatar: attempt.user.avatar,
+      totalMarks: attempt.totalMarks?.toNumber() || 0,
+      percentage: attempt.percentage?.toNumber() || 0,
+      attemptedCount: attempt.attemptedCount,
+      correctCount: attempt.correctCount,
+      incorrectCount: attempt.incorrectCount,
+      submittedAt: attempt.submittedAt || attempt.createdAt,
+    }));
+
+    // Calculate pagination
+    const totalPages = Math.ceil(totalParticipants / limit);
+
+    return {
+      userRank,
+      topRankers,
+      totalParticipants,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords: totalParticipants,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
+  }
+
+  async getGlobalRankings({
+    userId,
+    page,
+    limit,
+    categoryId,
+    subjectId,
+    period = "all_time",
+  }: GetGlobalRankingsParams): Promise<GlobalRankingData> {
+    // Build date filter based on period
+    let dateFilter = {};
+    const now = new Date();
+
+    if (period === "weekly") {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      dateFilter = { submittedAt: { gte: weekAgo } };
+    } else if (period === "monthly") {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      dateFilter = { submittedAt: { gte: monthAgo } };
+    }
+
+    // Build base where clause
+    const whereClause: any = {
+      status: TestStatus.SUBMITTED,
+      ...dateFilter,
+    };
+
+    // Add category/subject filter if provided
+    if (categoryId || subjectId) {
+      whereClause.test = {};
+      if (categoryId) {
+        whereClause.test.categoryId = categoryId;
+      }
+      if (subjectId) {
+        whereClause.test.subjectId = subjectId;
+      }
+    }
+
+    // Get aggregated student performance data
+    const studentPerformance = await prisma.testAttempt.groupBy({
+      by: ["userId"],
+      where: whereClause,
+      _count: {
+        id: true,
+      },
+      _sum: {
+        totalMarks: true,
+      },
+      _max: {
+        totalMarks: true,
+        submittedAt: true,
+      },
+      _avg: {
+        totalMarks: true,
+      },
+    });
+
+    // Calculate total students
+    const totalStudents = studentPerformance.length;
+
+    // Sort by average score (descending), then by total tests (descending)
+    const sortedPerformance = studentPerformance
+      .map((perf) => ({
+        userId: perf.userId,
+        totalTests: perf._count.id,
+        totalMarks: perf._sum.totalMarks?.toNumber() || 0,
+        averageScore: perf._avg.totalMarks?.toNumber() || 0,
+        bestScore: perf._max.totalMarks?.toNumber() || 0,
+        lastTestDate: perf._max.submittedAt,
+      }))
+      .sort((a, b) => {
+        // Primary: Average score
+        if (b.averageScore !== a.averageScore) {
+          return b.averageScore - a.averageScore;
+        }
+        // Secondary: Total tests (more tests = higher rank)
+        if (b.totalTests !== a.totalTests) {
+          return b.totalTests - a.totalTests;
+        }
+        // Tertiary: Best score
+        return b.bestScore - a.bestScore;
+      });
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+    const paginatedPerformance = sortedPerformance.slice(skip, skip + limit);
+
+    // Get user details for paginated results
+    const userIds = paginatedPerformance.map((p) => p.userId);
+    const users = await prisma.user.findMany({
+      where: {
+        id: { in: userIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        avatar: true,
+      },
+    });
+
+    // Create user map for quick lookup
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    // Format top rankers
+    const topRankers = paginatedPerformance.map((perf, index) => {
+      const user = userMap.get(perf.userId);
+      return {
+        rank: skip + index + 1,
+        userId: perf.userId,
+        userName: user?.name || "Anonymous",
+        avatar: user?.avatar || null,
+        totalTests: perf.totalTests,
+        averageScore: Math.round(perf.averageScore * 100) / 100,
+        totalMarks: Math.round(perf.totalMarks * 100) / 100,
+        bestScore: Math.round(perf.bestScore * 100) / 100,
+        lastTestDate: perf.lastTestDate,
+      };
+    });
+
+    // Get user's rank if userId is provided
+    let userRank = null;
+    if (userId) {
+      const userIndex = sortedPerformance.findIndex((p) => p.userId === userId);
+      if (userIndex !== -1) {
+        const userPerf = sortedPerformance[userIndex];
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, avatar: true },
+        });
+
+        userRank = {
+          rank: userIndex + 1,
+          totalTests: userPerf.totalTests,
+          averageScore: Math.round(userPerf.averageScore * 100) / 100,
+          totalMarks: Math.round(userPerf.totalMarks * 100) / 100,
+          bestScore: Math.round(userPerf.bestScore * 100) / 100,
+          userName: user?.name || "Anonymous",
+          avatar: user?.avatar || null,
+        };
+      }
+    }
+
+    // Calculate global stats
+    const totalTestsCompleted = await prisma.testAttempt.count({
+      where: whereClause,
+    });
+
+    const avgScoreResult = await prisma.testAttempt.aggregate({
+      where: whereClause,
+      _avg: {
+        totalMarks: true,
+      },
+    });
+
+    const stats = {
+      totalStudents,
+      totalTestsCompleted,
+      averageGlobalScore:
+        Math.round((avgScoreResult._avg.totalMarks?.toNumber() || 0) * 100) /
+        100,
+    };
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalStudents / limit);
+
+    return {
+      userRank,
+      topRankers,
+      stats,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords: totalStudents,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 }
 
