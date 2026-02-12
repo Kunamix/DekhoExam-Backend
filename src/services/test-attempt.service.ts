@@ -202,6 +202,7 @@ export class TestAttemptService {
 
     const data = {
       testName: attempt.test.name,
+      testId: attempt.testId,
       score: Number(attempt.totalMarks),
       totalScore:
         attempt.test.totalQuestions * Number(attempt.test.positiveMarks),
