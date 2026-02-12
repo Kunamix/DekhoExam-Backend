@@ -1,6 +1,5 @@
 import { prisma } from "@/configs";
 import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
-import { Prisma } from "@/generated/prisma/client";
 import { SubscriptionType } from "@/generated/prisma/enums";
 import { ApiError } from "@/utils";
 
@@ -41,6 +40,48 @@ interface UpdateTestInput {
 }
 
 export class TestService {
+  /**
+   * Get recently used question IDs for a category (within last 10 days)
+   */
+  private async getRecentlyUsedQuestionIds(categoryId: string): Promise<Set<string>> {
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+    const recentUsage = await prisma.questionUsage.findMany({
+      where: {
+        categoryId,
+        usedAt: {
+          gte: tenDaysAgo,
+        },
+      },
+      select: {
+        questionId: true,
+      },
+    });
+
+    return new Set(recentUsage.map((usage) => usage.questionId));
+  }
+
+  /**
+   * Record question usage for tracking
+   */
+  private async recordQuestionUsage(
+    questionIds: string[],
+    categoryId: string,
+    testId: string,
+  ): Promise<void> {
+    const usageRecords = questionIds.map((questionId) => ({
+      questionId,
+      categoryId,
+      testId,
+      usedAt: new Date(),
+    }));
+
+    await prisma.questionUsage.createMany({
+      data: usageRecords,
+    });
+  }
+
   async createTest({
     userId,
     categoryId,
@@ -107,20 +148,8 @@ export class TestService {
       );
     }
 
-    // 🔹 Collect already-used question IDs
-    const existingTests = await prisma.test.findMany({
-      where: {
-        categoryId,
-        preSelectedQuestionIds: { not: Prisma.DbNull },
-      },
-      select: { preSelectedQuestionIds: true },
-    });
-
-    const usedQuestionIds = new Set<string>();
-    existingTests.forEach((test) => {
-      const ids = (test.preSelectedQuestionIds as string[]) || [];
-      ids.forEach((id) => usedQuestionIds.add(id));
-    });
+    // 🔹 Get recently used question IDs (within last 10 days)
+    const recentlyUsedQuestionIds = await this.getRecentlyUsedQuestionIds(categoryId);
 
     const selectedQuestionIds: string[] = [];
     const insufficientSubjects: string[] = [];
@@ -138,19 +167,20 @@ export class TestService {
         select: { id: true },
       });
 
-      const unusedQuestions = allQuestions.filter(
-        (q) => !usedQuestionIds.has(q.id),
+      // Filter out questions used in the last 10 days
+      const availableQuestions = allQuestions.filter(
+        (q) => !recentlyUsedQuestionIds.has(q.id),
       );
 
-      if (unusedQuestions.length < required) {
+      if (availableQuestions.length < required) {
         insufficientSubjects.push(
-          `${item.subject.name}: Need ${required}, but only ${unusedQuestions.length} unused questions available`,
+          `${item.subject.name}: Need ${required}, but only ${availableQuestions.length} unused questions available (${allQuestions.length} total, ${allQuestions.length - availableQuestions.length} used in last 10 days)`,
         );
         continue;
       }
 
-      const shuffled = unusedQuestions.sort(() => 0.5 - Math.random());
-
+      // Shuffle and pick required questions
+      const shuffled = availableQuestions.sort(() => 0.5 - Math.random());
       const picked = shuffled.slice(0, required);
       selectedQuestionIds.push(...picked.map((q) => q.id));
     }
@@ -160,7 +190,7 @@ export class TestService {
         HTTP_STATUS.BAD_REQUEST,
         `Insufficient unused questions:\n${insufficientSubjects.join(
           "\n",
-        )}\n\nPlease upload more questions before creating this test`,
+        )}\n\nPlease upload more questions or wait for existing questions to become available (questions can be reused after 10 days)`,
       );
     }
 
@@ -169,25 +199,42 @@ export class TestService {
       () => 0.5 - Math.random(),
     );
 
-    const test = await prisma.test.create({
-      data: {
+    // 🔹 Create test and record question usage in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const test = await tx.test.create({
+        data: {
+          categoryId,
+          subjectId,
+          name,
+          description,
+          totalQuestions: finalQuestionIds.length,
+          durationMinutes,
+          positiveMarks,
+          negativeMarks,
+          isPaid,
+          testNumber,
+          preSelectedQuestionIds: finalQuestionIds,
+          createdById: userId,
+        },
+      });
+
+      // Record question usage
+      const usageRecords = finalQuestionIds.map((questionId) => ({
+        questionId,
         categoryId,
-        subjectId,
-        name,
-        description,
-        totalQuestions: finalQuestionIds.length,
-        durationMinutes,
-        positiveMarks,
-        negativeMarks,
-        isPaid,
-        testNumber,
-        preSelectedQuestionIds: finalQuestionIds,
-        createdById: userId,
-      },
+        testId: test.id,
+        usedAt: new Date(),
+      }));
+
+      await tx.questionUsage.createMany({
+        data: usageRecords,
+      });
+
+      return test;
     });
 
     return {
-      test,
+      test: result,
       questionsAssigned: finalQuestionIds.length,
     };
   }
@@ -253,6 +300,7 @@ export class TestService {
       },
     });
   }
+  
   async clone(id: string, testNumber: number, userId: string) {
     if (!testNumber) {
       throw new ApiError(
@@ -327,14 +375,20 @@ export class TestService {
       };
     }
 
-    // Hard delete
-    await prisma.test.delete({ where: { id } });
+    // Hard delete (also clean up question usage records)
+    await prisma.$transaction([
+      prisma.questionUsage.deleteMany({
+        where: { testId: id },
+      }),
+      prisma.test.delete({ where: { id } }),
+    ]);
 
     return {
       deleted: true,
       deactivated: false,
     };
   }
+
   async toggleStatus(id: string) {
     const test = await prisma.test.findUnique({
       where: { id },
@@ -874,6 +928,68 @@ export class TestService {
       duration: test.durationMinutes,
       questions: selectedQuestions,
       isFreeAttempt: consumeFreeAttempt,
+    };
+  }
+
+  /**
+   * Utility method to get question availability stats for a category
+   */
+  async getQuestionAvailabilityStats(categoryId: string) {
+    const blueprint = await prisma.categorySubject.findMany({
+      where: { categoryId },
+      include: {
+        subject: {
+          include: {
+            topics: {
+              where: { isActive: true },
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+
+    const recentlyUsedIds = await this.getRecentlyUsedQuestionIds(categoryId);
+
+    const stats = await Promise.all(
+      blueprint.map(async (item) => {
+        const topicIds = item.subject.topics.map((t) => t.id);
+
+        const totalQuestions = await prisma.question.count({
+          where: {
+            topicId: { in: topicIds },
+            isActive: true,
+          },
+        });
+
+        const allQuestions = await prisma.question.findMany({
+          where: {
+            topicId: { in: topicIds },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        const availableQuestions = allQuestions.filter(
+          (q) => !recentlyUsedIds.has(q.id),
+        ).length;
+
+        return {
+          subjectId: item.subject.id,
+          subjectName: item.subject.name,
+          required: item.questionsPerTest,
+          total: totalQuestions,
+          available: availableQuestions,
+          recentlyUsed: totalQuestions - availableQuestions,
+          canCreateTest: availableQuestions >= item.questionsPerTest,
+        };
+      }),
+    );
+
+    return {
+      categoryId,
+      subjects: stats,
+      canCreateTest: stats.every((s) => s.canCreateTest),
     };
   }
 }
