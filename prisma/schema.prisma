@@ -305,6 +305,18 @@ model Question {
   @@index([difficultyLevel])
 }
 
+model QuestionUsage {
+  id         String   @id @default(uuid())
+  questionId String
+  categoryId String
+  testId     String
+  usedAt     DateTime @default(now())
+
+  @@index([questionId])
+  @@index([categoryId])
+  @@index([testId])
+}
+
 model Test {
   id                     String   @id @default(uuid())
   categoryId             String
