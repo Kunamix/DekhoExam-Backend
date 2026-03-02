@@ -6,16 +6,10 @@ import { ApiError } from "@/utils";
 const SMS_BASE_URL = "http://msg.sysgraininfotech.com/vb/apikey.php";
 
 export class OTPService {
-  /**
-   * Generate a random 4-digit OTP code
-   */
   private generateCode(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
   }
 
-  /**
-   * Send OTP SMS to the given phone number, store in DB, return the OTP record id
-   */
   async sendOTP(phoneNumber: string): Promise<{ otpId: string }> {
     // Clean phone number — strip +91 or any non-digit chars
     const cleanNumber = phoneNumber.replace(/^\+91/, "").replace(/\D/g, "");
@@ -84,9 +78,6 @@ export class OTPService {
     return { otpId: otpRecord.id };
   }
 
-  /**
-   * Verify a 4-digit OTP code for a phone number
-   */
   async verifyOTP(phoneNumber: string, code: string): Promise<void> {
     const otpRecord = await prisma.oTP.findFirst({
       where: {
