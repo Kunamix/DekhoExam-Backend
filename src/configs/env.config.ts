@@ -18,7 +18,8 @@ const _environment = {
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   SMS_TEMPLATE_ID: process.env.SMS_TEMPLATE_ID,
   SMS_SENDER_ID: process.env.SMS_SENDER_ID,
-  SMS_API_KEY: process.env.SMS_API_KEY
+  SMS_API_KEY: process.env.SMS_API_KEY,
+  SMS_BASE_URL: process.env.SMS_BASE_URL 
 };
 
 // Validate required environment variables
@@ -35,7 +36,8 @@ const requiredEnvVars = [
   "CLOUDINARY_API_SECRET",
   "SMS_TEMPLATE_ID",
   "SMS_SENDER_ID",
-  "SMS_API_KEY"
+  "SMS_API_KEY",
+  "SMS_BASE_URL"
 ] as const;
 
 const missingEnvVars = requiredEnvVars.filter(

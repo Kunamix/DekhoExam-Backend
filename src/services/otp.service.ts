@@ -3,8 +3,6 @@ import { myEnvironment, prisma } from "@/configs";
 import { APP_CONSTANTS, HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 
-const SMS_BASE_URL = "http://msg.sysgraininfotech.com/vb/apikey.php";
-
 export class OTPService {
   private generateCode(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -27,14 +25,14 @@ export class OTPService {
     });
 
     // 2. Generate 4-digit code
-    const code = this.generateCode();
+    const code = this.generateCode(); 
 
     // 3. Build the SMS message (must match approved DLT template exactly)
     const message = `Dear User, your Code for Dekho Exam is ${code}. This code is valid for ${APP_CONSTANTS.OTP_EXPIRY_MINUTES} minutes. Please do not share it with anyone. - Dekho Exam`;
 
     // 4. Send SMS via Sysgrain Infotech API
     try {
-      const { data } = await axios.get(SMS_BASE_URL, {
+      const { data } = await axios.get(myEnvironment.SMS_BASE_URL as string, {
         params: {
           apikey: myEnvironment.SMS_API_KEY,
           senderid: myEnvironment.SMS_SENDER_ID,
@@ -42,7 +40,7 @@ export class OTPService {
           number: cleanNumber,
           message,
         },
-      });
+      }); 
 
       // API returns { status: "Success", code: "011", ... } on success
       if (data?.status !== "Success") {
