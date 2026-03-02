@@ -4,8 +4,8 @@ export * from "./success-messages";
 
 export const APP_CONSTANTS = {
   FREE_TESTS_LIMIT: 5,
-  OTP_LENGTH: 6,
-  OTP_EXPIRY_MINUTES: 10,
+  OTP_LENGTH: 4,
+  OTP_EXPIRY_MINUTES: 5,
   MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
   ALLOWED_IMAGE_TYPES: ["image/jpeg", "image/jpg", "image/png", "image/webp"],
   ALLOWED_DOCUMENT_TYPES: ["application/pdf", "text/csv"],

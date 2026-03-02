@@ -2,6 +2,7 @@ import { myEnvironment, prisma } from "@/configs";
 import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 import { authHelper } from "@/utils/auth-helper.util";
+import { otpService } from "./otp.service";
 
 interface VerifyOtpInput {
   otpCode: string;
@@ -20,31 +21,14 @@ export class AuthService {
       );
     }
 
-    // 1. Clear old OTPs
-    await prisma.oTP.deleteMany({
-      where: { phoneNumber },
-    });
+    // Send real OTP via SMS API
+    const { otpId } = await otpService.sendOTP(phoneNumber);
 
-    // 2. Generate OTP + expiry
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
-
-    const otp = "123456"; // TODO: replace with real generator
-
-    // 3. Save OTP
-    const otpRecord = await prisma.oTP.create({
-      data: {
-        code: otp,
-        phoneNumber,
-        expiresAt,
-      },
-    });
-
-    // 4. Create verification token
+    // Create verification token (links the OTP record to this request)
     const verificationToken = authHelper.signToken(
       {
         phoneNumber,
-        otpId: otpRecord.id,
+        otpId,
       },
       myEnvironment.OTP_VERIFY_SECRET as string,
       {
@@ -55,7 +39,6 @@ export class AuthService {
     return {
       phoneNumber,
       verificationToken,
-      expiresAt,
     };
   }
 
@@ -86,39 +69,10 @@ export class AuthService {
       );
     }
 
-    const { otpId, phoneNumber } = decoded;
+    const { phoneNumber } = decoded;
 
-    const otpRecord = await prisma.oTP.findUnique({
-      where: { id: otpId },
-    });
-
-    if (!otpRecord) {
-      throw new ApiError(
-        HTTP_STATUS.BAD_REQUEST,
-        ERROR_MESSAGES.INVALID_REQUEST_OR_OTP,
-      );
-    }
-
-    if (new Date() > otpRecord.expiresAt) {
-      await prisma.oTP.delete({ where: { id: otpId } });
-      throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.OTP_EXPIRED);
-    }
-
-    if (otpRecord.attempts >= 3) {
-      await prisma.oTP.delete({ where: { id: otpId } });
-      throw new ApiError(
-        HTTP_STATUS.TOO_MANY_REQUESTS,
-        ERROR_MESSAGES.TOO_MANY_OTP_ATTEMPTS,
-      );
-    }
-
-    if (otpRecord.code !== otpCode) {
-      await prisma.oTP.update({
-        where: { id: otpId },
-        data: { attempts: { increment: 1 } },
-      });
-      throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.INVALID_OTP);
-    }
+    // Verify the OTP code via otpService (handles expiry, attempts, cleanup)
+    await otpService.verifyOTP(phoneNumber, otpCode);
 
     const deviceType = /mobile/i.test(userAgent) ? "MOBILE" : "WEB";
 
@@ -184,15 +138,9 @@ export class AuthService {
           },
         });
 
-        await tx.oTP.delete({ where: { id: otpId } });
-
         return { user, accessToken, refreshToken };
       },
     );
-
-    await prisma.oTP.deleteMany({
-      where: { phoneNumber },
-    });
 
     return { user, accessToken, refreshToken };
   }

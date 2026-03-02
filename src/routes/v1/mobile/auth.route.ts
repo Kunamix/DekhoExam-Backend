@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { verifyToken } from "@/middlewares";
-import { getMe, login, logout, verifyOTP } from "@/controllers/mobile/auth.controller";
+import {
+  getMe,
+  login,
+  logout,
+  verifyOTP,
+} from "@/controllers/mobile/auth.controller";
 
 const router = Router();
 

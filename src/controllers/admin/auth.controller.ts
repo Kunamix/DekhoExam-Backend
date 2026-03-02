@@ -124,7 +124,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
           name: admin.name,
           phoneNumber: admin.phoneNumber,
           role: admin.role,
-          email: admin.email
+          email: admin.email,
         },
         accessToken,
         refreshToken,

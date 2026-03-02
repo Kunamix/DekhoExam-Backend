@@ -21,6 +21,9 @@ build/
 .env.production
 .env.test
 
+# Google Play Service Account Key (SENSITIVE - never commit)
+src/configs/google-play-service-account.json
+
 # IDE & Editors
 .vscode/
 .idea/

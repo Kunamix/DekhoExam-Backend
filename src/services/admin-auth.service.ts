@@ -2,6 +2,7 @@ import { prisma, myEnvironment } from "@/configs";
 import { HTTP_STATUS, ERROR_MESSAGES } from "@/constants";
 import { ApiError } from "@/utils";
 import { authHelper } from "@/utils/auth-helper.util";
+import { otpService } from "./otp.service";
 
 interface AdminPasswordLoginInput {
   email: string;
@@ -136,27 +137,14 @@ export class AdminAuthService {
       );
     }
 
-    const otpCode = "123456"; // TODO: real generator
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    // Send real OTP via SMS API
+    const { otpId } = await otpService.sendOTP(phoneNumber);
 
-    await prisma.oTP.deleteMany({
-      where: { phoneNumber },
-    });
-
-    const otpRecord = await prisma.oTP.create({
-      data: {
-        phoneNumber,
-        code: otpCode,
-        purpose: "admin-login",
-        expiresAt,
-      },
-    });
-
+    // Create verification token
     const token = authHelper.signToken(
       {
         id: admin.id,
-        otpId: otpRecord.id,
+        otpId,
         phoneNumber,
       },
       myEnvironment.OTP_VERIFY_SECRET as string,
@@ -164,8 +152,7 @@ export class AdminAuthService {
     );
 
     return {
-      otpId: otpRecord.id,
-      expiresAt,
+      otpId,
       phoneNumber,
       token,
     };
@@ -194,43 +181,8 @@ export class AdminAuthService {
       );
     }
 
-    const otpRecord = await prisma.oTP.findUnique({
-      where: { id: decoded.otpId },
-    });
-
-    if (
-      !otpRecord ||
-      otpRecord.phoneNumber?.toString() !== decoded.phoneNumber.toString()
-    ) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_OTP);
-    }
-
-    if (otpRecord.isVerified) {
-      throw new ApiError(
-        HTTP_STATUS.UNAUTHORIZED,
-        ERROR_MESSAGES.OTP_ALREADY_USED,
-      );
-    }
-
-    if (new Date() > otpRecord.expiresAt) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.OTP_EXPIRED);
-    }
-
-    if (otpRecord.attempts >= 3) {
-      throw new ApiError(
-        HTTP_STATUS.TOO_MANY_REQUESTS,
-        ERROR_MESSAGES.TOO_MANY_OTP_ATTEMPTS,
-      );
-    }
-
-    if (otpRecord.code !== otpCode) {
-      await prisma.oTP.update({
-        where: { id: otpRecord.id },
-        data: { attempts: { increment: 1 } },
-      });
-
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_OTP);
-    }
+    // Verify the OTP code via otpService (handles expiry, attempts, cleanup)
+    await otpService.verifyOTP(decoded.phoneNumber, otpCode);
 
     const admin = await prisma.user.findUnique({
       where: { phoneNumber: decoded.phoneNumber },
@@ -238,7 +190,6 @@ export class AdminAuthService {
         id: true,
         phoneNumber: true,
         email: true,
-        // password excluded!
         name: true,
         avatar: true,
         role: true,
@@ -259,15 +210,11 @@ export class AdminAuthService {
       );
     }
 
-    // 🔥 transactional safety
+    // Transactional session creation
     const { accessToken, refreshToken } = await prisma.$transaction(
       async (tx) => {
         await tx.session.deleteMany({
           where: { userId: admin.id },
-        });
-
-        await tx.oTP.delete({
-          where: { id: otpRecord.id },
         });
 
         const accessToken = authHelper.signToken(
