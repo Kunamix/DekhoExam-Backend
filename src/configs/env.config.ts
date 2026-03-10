@@ -18,7 +18,11 @@ const _environment = {
   SMS_TEMPLATE_ID: process.env.SMS_TEMPLATE_ID,
   SMS_SENDER_ID: process.env.SMS_SENDER_ID,
   SMS_API_KEY: process.env.SMS_API_KEY,
-  SMS_BASE_URL: process.env.SMS_BASE_URL 
+  SMS_BASE_URL: process.env.SMS_BASE_URL,
+  DB_NAME: process.env.DB_NAME,
+  DB_PASSWORD: process.env.DB_PASSWORD,
+  DB_USER: process.env.DB_USER,
+  DB_HOST: process.env.DB_HOST
 };
 
 // Validate required environment variables
