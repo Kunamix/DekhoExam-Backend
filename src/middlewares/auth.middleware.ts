@@ -10,6 +10,7 @@ export const verifyToken = asyncHandler(
     const token =
       req.cookies?.accessToken || req.headers.authorization?.split(" ")[1];
 
+
     if (!token) {
       throw new ApiError(401, "Access token required");
     }
@@ -40,13 +41,13 @@ export const verifyToken = asyncHandler(
     (req).user = {
       id: decoded.id, 
     };
-
     next();
   },
 );
 
 export const verifyAdmin = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
+
     const user = req.user;
 
     if (!user) {
@@ -60,7 +61,6 @@ export const verifyAdmin = asyncHandler(
     if (!admin || admin.role !== "ADMIN") {
       throw new ApiError(403, "Admin access required");
     }
-
     next();
   },
 );

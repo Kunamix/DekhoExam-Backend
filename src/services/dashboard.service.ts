@@ -1,6 +1,13 @@
 import { prisma } from "@/configs";
 import { format, startOfMonth, subDays } from "date-fns";
 
+const toNumber = (val: unknown): number => {
+  if (typeof val === "bigint") return Number(val);
+  if (typeof val === "string") return parseFloat(val);
+  if (typeof val === "number") return val;
+  return 0;
+};
+
 export class DashboardService {
   async getStats() {
     const today = new Date();
@@ -136,13 +143,13 @@ export class DashboardService {
       { month: string; revenue: number }[]
     >`
       SELECT 
-        TO_CHAR("createdAt", 'Mon') AS month,
-        SUM(amount)::float AS revenue
-      FROM "Payment"
+        DATE_FORMAT(createdAt, '%b') AS month,
+        CAST(SUM(amount) AS DECIMAL(10,2)) AS revenue
+      FROM Payment
       WHERE status = 'SUCCESS'
-        AND "createdAt" > NOW() - INTERVAL '1 year'
-      GROUP BY TO_CHAR("createdAt", 'Mon'), EXTRACT(MONTH FROM "createdAt")
-      ORDER BY EXTRACT(MONTH FROM "createdAt")
+        AND createdAt > DATE_SUB(NOW(), INTERVAL 1 YEAR)
+      GROUP BY DATE_FORMAT(createdAt, '%b'), MONTH(createdAt)
+      ORDER BY MONTH(createdAt)
     `;
 
     return {
@@ -153,11 +160,11 @@ export class DashboardService {
     };
   }
 
-  async getAnalytics() {
+ async getAnalytics() {
     const today = new Date();
     const last7Days = subDays(today, 7);
     const last30Days = subDays(today, 30);
-
+ 
     // ================= 1️⃣ Test Attempts by Category =================
     const categoryAttempts = await prisma.category.findMany({
       where: { isActive: true },
@@ -172,7 +179,7 @@ export class DashboardService {
         },
       },
     });
-
+ 
     const testAttemptsByCategory = categoryAttempts
       .map((cat) => ({
         category: cat.name,
@@ -182,32 +189,37 @@ export class DashboardService {
         ),
       }))
       .sort((a, b) => b.attempts - a.attempts);
-
+ 
     // ================= 2️⃣ Daily Registrations (Last 7 Days) =================
-    const dailyRegistrations = await prisma.$queryRaw<
-      Array<{ date: string; users: number }>
+    const dailyRegistrationsRaw = await prisma.$queryRaw<
+      Array<{ date: string; users: bigint }>
     >`
       SELECT 
-        DATE("createdAt") as date,
-        COUNT(*)::int as users
-      FROM "User"
-      WHERE "createdAt" >= ${last7Days}
-      GROUP BY DATE("createdAt")
+        DATE(createdAt) as date,
+        CAST(COUNT(*) AS UNSIGNED) as users
+      FROM User
+      WHERE createdAt >= ${last7Days}
+      GROUP BY DATE(createdAt)
       ORDER BY date ASC
     `;
-
+ 
+    const dailyRegistrations = dailyRegistrationsRaw.map((row) => ({
+      date: row.date,
+      users: toNumber(row.users),
+    }));
+ 
     // ================= 3️⃣ Question Difficulty Distribution =================
     const difficultyStats = await prisma.question.groupBy({
       by: ["difficultyLevel"],
       where: { isActive: true },
       _count: { id: true },
     });
-
+ 
     const difficultyDistribution = difficultyStats.map((stat) => ({
       name: stat.difficultyLevel,
       value: stat._count.id,
     }));
-
+ 
     // ================= 4️⃣ Test Performance Stats =================
     const testStats = await prisma.testAttempt.aggregate({
       where: {
@@ -217,32 +229,40 @@ export class DashboardService {
       _avg: { percentage: true },
       _count: { id: true },
     });
-
+ 
     // ================= 5️⃣ Top Performing Users =================
-    const topPerformers = await prisma.$queryRaw<
+    const topPerformersRaw = await prisma.$queryRaw<
       Array<{
         userId: string;
         name: string;
         email: string;
-        avgScore: number;
-        testsAttempted: number;
+        avgScore: bigint | number | string;
+        testsAttempted: bigint | number;
       }>
     >`
       SELECT 
-        u.id as "userId",
+        u.id as userId,
         u.name,
         u.email,
-        AVG(ta.percentage)::numeric(5,2) as "avgScore",
-        COUNT(ta.id)::int as "testsAttempted"
-      FROM "User" u
-      INNER JOIN "TestAttempt" ta ON ta."userId" = u.id
+        CAST(AVG(ta.percentage) AS DECIMAL(5,2)) as avgScore,
+        CAST(COUNT(ta.id) AS UNSIGNED) as testsAttempted
+      FROM User u
+      INNER JOIN TestAttempt ta ON ta.userId = u.id
       WHERE ta.status = 'SUBMITTED'
       GROUP BY u.id, u.name, u.email
       HAVING COUNT(ta.id) >= 3
-      ORDER BY "avgScore" DESC
+      ORDER BY avgScore DESC
       LIMIT 10
     `;
-
+ 
+    const topPerformers = topPerformersRaw.map((row) => ({
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      avgScore: toNumber(row.avgScore),
+      testsAttempted: toNumber(row.testsAttempted),
+    }));
+ 
     // ================= 6️⃣ Subscription Conversion Funnel =================
     const [totalUsers, usersWithAttempts, activeSubscribers] =
       await Promise.all([
@@ -257,19 +277,19 @@ export class DashboardService {
           where: { isActive: true, endDate: { gt: today } },
         }),
       ]);
-
+ 
     const conversionFunnel = [
       { name: "Total Users", value: totalUsers },
       { name: "Test Takers", value: usersWithAttempts },
       { name: "Active Subscribers", value: activeSubscribers },
     ];
-
+ 
     // ================= 7️⃣ Most Popular Category =================
     const mostPopular = testAttemptsByCategory[0] || {
       category: "N/A",
       attempts: 0,
     };
-
+ 
     return {
       testAttemptsByCategory,
       dailyRegistrations,

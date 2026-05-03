@@ -61,9 +61,9 @@ export class AuditLogService {
 
     if (search) {
       where.OR = [
-        { action: { contains: search, mode: "insensitive" } },
-        { entity: { contains: search, mode: "insensitive" } },
-        { entityId: { contains: search, mode: "insensitive" } },
+        { action: { contains: search } },
+        { entity: { contains: search } },
+        { entityId: { contains: search } },
       ];
     }
 

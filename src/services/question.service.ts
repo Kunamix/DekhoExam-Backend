@@ -196,7 +196,6 @@ export class QuestionService {
     if (search) {
       where.questionText = {
         contains: search,
-        mode: "insensitive",
       };
     }
 

@@ -51,7 +51,6 @@ const shutdown = async (signal: string) => {
     // 3. Close database connections
     await prisma.$disconnect();
     logger.info("✅ Database disconnected");
-
     logger.info("👋 Shutdown complete. Exiting process.");
     process.exit(0);
   } catch (error) {

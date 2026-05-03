@@ -482,11 +482,10 @@ export class TestService {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
+        { name: { contains: search } },
         {
           description: {
             contains: search,
-            mode: "insensitive",
           },
         },
       ];

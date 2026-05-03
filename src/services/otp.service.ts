@@ -28,7 +28,7 @@ export class OTPService {
     const code = this.generateCode(); 
 
     // 3. Build the SMS message (must match approved DLT template exactly)
-    const message = `Dear User, your Code for Dekho Exam is ${code}. This code is valid for ${APP_CONSTANTS.OTP_EXPIRY_MINUTES} minutes. Please do not share it with anyone. - Dekho Exam`;
+    const message = `Dear User, your Code for Dekho Exam is ${code}. This code is valid for ${APP_CONSTANTS.OTP_EXPIRY_MINUTES} minutes. Please do not share it with anyone. - Dekho Exam Sysgrain Infotech`;
 
     // 4. Send SMS via Sysgrain Infotech API
     try {

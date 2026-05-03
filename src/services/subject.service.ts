@@ -32,7 +32,6 @@ export class SubjectService {
       where: {
         name: {
           equals: data.name,
-          mode: "insensitive",
         },
       },
     });
@@ -82,8 +81,8 @@ export class SubjectService {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
+        { name: { contains: search } },
+        { description: { contains: search } },
       ];
     }
 
@@ -248,7 +247,6 @@ export class SubjectService {
         where: {
           name: {
             equals: data.name,
-            mode: "insensitive",
           },
           id: {
             not: id,

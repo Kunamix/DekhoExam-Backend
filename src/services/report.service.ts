@@ -40,8 +40,8 @@ export class ReportService {
 
     if (search) {
       where.OR = [
-        { description: { contains: search, mode: "insensitive" } },
-        { entityId: { contains: search, mode: "insensitive" } },
+        { description: { contains: search } },
+        { entityId: { contains: search } },
       ];
     }
 

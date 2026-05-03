@@ -260,12 +260,11 @@ export class UserService {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
+        { name: { contains: search } },
+        { email: { contains: search } },
         {
           phoneNumber: {
             contains: search,
-            mode: "insensitive",
           },
         },
       ];
@@ -535,19 +534,16 @@ export class UserService {
           {
             name: {
               contains: query,
-              mode: "insensitive",
             },
           },
           {
             email: {
               contains: query,
-              mode: "insensitive",
             },
           },
           {
             phoneNumber: {
               contains: query,
-              mode: "insensitive",
             },
           },
         ],

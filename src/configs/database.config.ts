@@ -1,5 +1,5 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient } from "../generated/prisma";
+import { PrismaClient } from "../generated/prisma/client";
 import { myEnvironment } from "../configs/env.config";
 
 const globalForPrisma = globalThis as unknown as {
@@ -15,12 +15,12 @@ const adapter = new PrismaMariaDb({
   connectionLimit: 5,
 });
 
-export const db =
+export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
   });
 
 if (myEnvironment.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+  globalForPrisma.prisma = prisma;
 }

@@ -14,7 +14,10 @@ const app: Application = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://dekhoexam.netlify.app"],
+    origin: ["http://localhost:5173",
+        "https://dekhoexam.com",
+        "https://www.dekhoexam.com",
+        "https://admin.dekhoexam.com"],
     optionsSuccessStatus: 200,
     credentials: true,
     maxAge: 86400,
