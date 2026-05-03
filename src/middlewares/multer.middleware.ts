@@ -22,16 +22,16 @@ const docFileFilter = (
     .substring(file.originalname.lastIndexOf("."))
     .toLowerCase();
 
-  if (
-    ALLOWED_DOC_TYPES.includes(file.mimetype) ||
-    ALLOWED_DOC_EXTENSIONS.includes(ext)
-  ) {
+  // Check extension FIRST — more reliable than MIME type
+  // Some systems send application/octet-stream for CSV files
+  if (ALLOWED_DOC_EXTENSIONS.includes(ext)) {
+    cb(null, true);
+  } else if (ALLOWED_DOC_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error("Only CSV and Excel (.xls, .xlsx) files are allowed"));
   }
 };
-
 /**
  * Multer instance for document uploads (CSV, Excel).
  * - Stored in memory buffer

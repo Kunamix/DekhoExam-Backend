@@ -138,6 +138,10 @@ export class AuthService {
           },
         });
 
+        await tx.session.deleteMany({
+          where: { userId: user.id },
+        });
+
         return { user, accessToken, refreshToken };
       },
     );

@@ -339,9 +339,11 @@ export class QuestionService {
     } else if (data.questionImagePath) {
       // User is uploading a new question image
       let oldQuestionImagePublicId: string | null = null;
-      
+
       if (question.questionImageUrl) {
-        oldQuestionImagePublicId = extractPublicIdFromUrl(question.questionImageUrl);
+        oldQuestionImagePublicId = extractPublicIdFromUrl(
+          question.questionImageUrl,
+        );
       }
 
       try {
@@ -391,9 +393,11 @@ export class QuestionService {
     } else if (data.explanationImagePath) {
       // User is uploading a new explanation image
       let oldExplanationImagePublicId: string | null = null;
-      
+
       if (question.explanationImageUrl) {
-        oldExplanationImagePublicId = extractPublicIdFromUrl(question.explanationImageUrl);
+        oldExplanationImagePublicId = extractPublicIdFromUrl(
+          question.explanationImageUrl,
+        );
       }
 
       try {
@@ -409,7 +413,10 @@ export class QuestionService {
           try {
             await deleteImage(oldExplanationImagePublicId);
           } catch (deleteError) {
-            console.warn("Failed to delete old explanation image:", deleteError);
+            console.warn(
+              "Failed to delete old explanation image:",
+              deleteError,
+            );
           }
         }
       } catch (error) {
@@ -593,6 +600,15 @@ export class QuestionService {
     if (results.length === 0) {
       throw new ApiError(HTTP_STATUS.BAD_REQUEST, ERROR_MESSAGES.FILE_EMPTY);
     }
+
+    results = results.map((row) => {
+      const normalized: Record<string, string> = {};
+      for (const key of Object.keys(row)) {
+        const cleanKey = key.replace(/^\uFEFF/, "").trim();
+        normalized[cleanKey] = row[key];
+      }
+      return normalized;
+    });
 
     // Process rows
     const questionsToCreate: {

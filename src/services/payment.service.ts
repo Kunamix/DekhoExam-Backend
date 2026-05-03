@@ -42,6 +42,31 @@ export class PaymentService {
       );
     }
 
+    if (Number(plan.price) === 0) {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + plan.durationDays);
+
+      await prisma.userSubscription.create({
+        data: {
+          userId,
+          planId: plan.id,
+          type: plan.type,
+          categoryId: plan.categoryId ?? null,
+          startDate,
+          endDate,
+          isActive: true,
+          autoRenew: false,
+        },
+      });
+
+      return {
+        isFree: true,
+        planName: plan.name,
+        message: "Free trial activated successfully",
+      };
+    }
+
     const amountInPaisa = Math.round(Number(plan.price) * 100);
 
     const options = {
@@ -178,18 +203,29 @@ export class PaymentService {
         },
       });
 
-      await tx.userSubscription.create({
-        data: {
+      const existingSub = await tx.userSubscription.findFirst({
+        where: {
           userId,
           planId: metadata.planId,
-          type: metadata.planType,
-          categoryId: metadata.categoryId || null,
-          startDate,
-          endDate,
           isActive: true,
-          autoRenew: false,
+          endDate: { gt: new Date() },
         },
       });
+
+      if (!existingSub) {
+        await tx.userSubscription.create({
+          data: {
+            userId,
+            planId: metadata.planId,
+            type: metadata.planType,
+            categoryId: metadata.categoryId || null,
+            startDate,
+            endDate,
+            isActive: true,
+            autoRenew: false,
+          },
+        });
+      }
     });
 
     return { success: true };

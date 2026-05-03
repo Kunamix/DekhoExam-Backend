@@ -68,18 +68,28 @@ export const handleRazorpayWebhook = async (req: Request, res: Response) => {
               where: { id: paymentRecord.id },
               data: { status: "SUCCESS", transactionId: paymentId },
             });
-
-            await tx.userSubscription.create({
-              data: {
+            const existingSub = await tx.userSubscription.findFirst({
+              where: {
                 userId: paymentRecord.userId,
                 planId: metadata.planId,
-                type: metadata.planType as SubscriptionType,
-                categoryId: metadata.categoryId ?? null,
-                startDate: new Date(),
-                endDate,
                 isActive: true,
+                endDate: { gt: new Date() },
               },
             });
+
+            if (!existingSub) {
+              await tx.userSubscription.create({
+                data: {
+                  userId: paymentRecord.userId,
+                  planId: metadata.planId,
+                  type: metadata.planType as SubscriptionType,
+                  categoryId: metadata.categoryId ?? null,
+                  startDate: new Date(),
+                  endDate,
+                  isActive: true,
+                },
+              });
+            }
           });
         } catch (err) {
           console.error("Webhook DB transaction failed", err);
