@@ -111,14 +111,18 @@ export class AuthService {
         const accessToken = authHelper.signToken(
           { id: user.id },
           myEnvironment.ACCESS_SECRET as string,
-          { expiresIn: "3d" },
+          { expiresIn: "1y" },
         );
 
         const refreshToken = authHelper.signToken(
           { id: user.id },
           myEnvironment.REFRESH_SECRET as string,
-          { expiresIn: "7d" },
+          { expiresIn: "2y" },
         );
+
+        await tx.session.deleteMany({
+          where: { userId: user.id },
+        });
 
         const refreshTokenExpiry = new Date();
         refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 7);
@@ -136,10 +140,6 @@ export class AuthService {
             userAgent,
             isActive: true,
           },
-        });
-
-        await tx.session.deleteMany({
-          where: { userId: user.id },
         });
 
         return { user, accessToken, refreshToken };
