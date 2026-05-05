@@ -1,5 +1,6 @@
 import { myEnvironment } from "../configs/env.config.js";
 import winston from "winston";
+import DailyRotateFile from "winston-daily-rotate-file"; // ← add this
 
 const levels = {
   error: 0,
@@ -33,11 +34,22 @@ const format = winston.format.combine(
   ),
 );
 
+// ← replace old transports with this
 const transports = [
   new winston.transports.Console(),
-  new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-  new winston.transports.File({ filename: "logs/info.log", level: "info" }),
-  new winston.transports.File({ filename: "logs/http.log", level: "http" }),
+  new DailyRotateFile({
+    filename: "logs/error-%DATE%.log",
+    datePattern: "YYYY-MM-DD",
+    level: "error",
+    maxFiles: "14d", // keep only last 14 days, then auto delete
+    maxSize: "20m", // if one day's file exceeds 20MB, start a new file
+  }),
+  new DailyRotateFile({
+    filename: "logs/combined-%DATE%.log",
+    datePattern: "YYYY-MM-DD",
+    maxFiles: "7d",
+    maxSize: "20m",
+  }),
 ];
 
 const logger = winston.createLogger({
