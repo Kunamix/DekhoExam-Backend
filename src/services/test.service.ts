@@ -362,26 +362,31 @@ export class TestService {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.TEST_NOT_FOUND);
     }
 
-    // Soft delete
-    if (test._count.testAttempts > 0) {
-      await prisma.test.update({
-        where: { id },
-        data: { isActive: false },
+    await prisma.$transaction(async (tx) => {
+      // 1️⃣ Delete all answers inside all attempts of this test
+      await tx.testAttemptAnswer.deleteMany({
+        where: {
+          attempt: {
+            testId: id,
+          },
+        },
       });
 
-      return {
-        deleted: false,
-        deactivated: true,
-      };
-    }
-
-    // Hard delete (also clean up question usage records)
-    await prisma.$transaction([
-      prisma.questionUsage.deleteMany({
+      // 2️⃣ Delete all test attempts
+      await tx.testAttempt.deleteMany({
         where: { testId: id },
-      }),
-      prisma.test.delete({ where: { id } }),
-    ]);
+      });
+
+      // 3️⃣ Delete question usage records for this test
+      await tx.questionUsage.deleteMany({
+        where: { testId: id },
+      });
+
+      // 4️⃣ Finally delete the test itself
+      await tx.test.delete({
+        where: { id },
+      });
+    });
 
     return {
       deleted: true,
@@ -991,7 +996,6 @@ export class TestService {
       canCreateTest: stats.every((s) => s.canCreateTest),
     };
   }
-  
 }
 
 export const testService = new TestService();
