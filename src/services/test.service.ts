@@ -43,23 +43,18 @@ export class TestService {
   /**
    * Get recently used question IDs for a category (within last 10 days)
    */
-  private async getRecentlyUsedQuestionIds(categoryId: string): Promise<Set<string>> {
-    const tenDaysAgo = new Date();
-    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-
-    const recentUsage = await prisma.questionUsage.findMany({
+  private async getUsedQuestionIds(categoryId: string): Promise<Set<string>> {
+    const usedQuestions = await prisma.questionUsage.findMany({
       where: {
         categoryId,
-        usedAt: {
-          gte: tenDaysAgo,
-        },
+        // ✅ No time filter — all previously used questions
       },
       select: {
         questionId: true,
       },
     });
 
-    return new Set(recentUsage.map((usage) => usage.questionId));
+    return new Set(usedQuestions.map((usage) => usage.questionId));
   }
 
   /**
@@ -94,6 +89,7 @@ export class TestService {
     isPaid = true,
     testNumber,
   }: CreateTestInput) {
+    // 🔹 Validate required fields
     if (!categoryId || !name || !testNumber) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
@@ -101,6 +97,7 @@ export class TestService {
       );
     }
 
+    // 🔹 Check category exists
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
     });
@@ -112,6 +109,7 @@ export class TestService {
       );
     }
 
+    // 🔹 Check duplicate test number
     const existingTest = await prisma.test.findFirst({
       where: {
         categoryId,
@@ -148,17 +146,17 @@ export class TestService {
       );
     }
 
-    // 🔹 Get recently used question IDs (within last 10 days)
-    const recentlyUsedQuestionIds = await this.getRecentlyUsedQuestionIds(categoryId);
+    // 🔹 Get all previously used question IDs for this category
+    const usedQuestionIds = await this.getUsedQuestionIds(categoryId);
 
     const selectedQuestionIds: string[] = [];
-    const insufficientSubjects: string[] = [];
 
     // 🔹 Allocate questions per subject
     for (const item of blueprint) {
       const topicIds = item.subject.topics.map((t) => t.id);
       const required = item.questionsPerTest;
 
+      // Fetch all active questions for this subject
       const allQuestions = await prisma.question.findMany({
         where: {
           topicId: { in: topicIds },
@@ -167,34 +165,36 @@ export class TestService {
         select: { id: true },
       });
 
-      // Filter out questions used in the last 10 days
-      const availableQuestions = allQuestions.filter(
-        (q) => !recentlyUsedQuestionIds.has(q.id),
-      );
-
-      if (availableQuestions.length < required) {
-        insufficientSubjects.push(
-          `${item.subject.name}: Need ${required}, but only ${availableQuestions.length} unused questions available (${allQuestions.length} total, ${allQuestions.length - availableQuestions.length} used in last 10 days)`,
+      // ❌ Real error — not enough total questions even with reuse
+      if (allQuestions.length < required) {
+        throw new ApiError(
+          HTTP_STATUS.BAD_REQUEST,
+          `${item.subject.name}: Only ${allQuestions.length} questions exist but ${required} are required. Please upload more questions.`,
         );
-        continue;
       }
 
-      // Shuffle and pick required questions
-      const shuffled = availableQuestions.sort(() => 0.5 - Math.random());
-      const picked = shuffled.slice(0, required);
+      // ✅ Split into fresh and used pools
+      const freshQuestions = allQuestions.filter(
+        (q) => !usedQuestionIds.has(q.id),
+      );
+      const usedQuestions = allQuestions.filter((q) =>
+        usedQuestionIds.has(q.id),
+      );
+
+      // 🔀 Shuffle both pools independently
+      const shuffledFresh = freshQuestions.sort(() => 0.5 - Math.random());
+      const shuffledUsed = usedQuestions.sort(() => 0.5 - Math.random());
+
+      // ✅ Pick fresh first, fill gap with used if needed
+      const picked = [
+        ...shuffledFresh.slice(0, required),
+        ...shuffledUsed.slice(0, required - shuffledFresh.length),
+      ].slice(0, required);
+
       selectedQuestionIds.push(...picked.map((q) => q.id));
     }
 
-    if (insufficientSubjects.length > 0) {
-      throw new ApiError(
-        HTTP_STATUS.BAD_REQUEST,
-        `Insufficient unused questions:\n${insufficientSubjects.join(
-          "\n",
-        )}\n\nPlease upload more questions or wait for existing questions to become available (questions can be reused after 10 days)`,
-      );
-    }
-
-    // 🔹 Final shuffle
+    // 🔀 Final shuffle — mix all subjects together
     const finalQuestionIds = selectedQuestionIds.sort(
       () => 0.5 - Math.random(),
     );
@@ -218,7 +218,7 @@ export class TestService {
         },
       });
 
-      // Record question usage
+      // 📝 Record question usage for future reference
       const usageRecords = finalQuestionIds.map((questionId) => ({
         questionId,
         categoryId,
@@ -300,7 +300,7 @@ export class TestService {
       },
     });
   }
-  
+
   async clone(id: string, testNumber: number, userId: string) {
     if (!testNumber) {
       throw new ApiError(
@@ -948,7 +948,7 @@ export class TestService {
       },
     });
 
-    const recentlyUsedIds = await this.getRecentlyUsedQuestionIds(categoryId);
+    const recentlyUsedIds = await this.getUsedQuestionIds(categoryId);
 
     const stats = await Promise.all(
       blueprint.map(async (item) => {
@@ -991,6 +991,7 @@ export class TestService {
       canCreateTest: stats.every((s) => s.canCreateTest),
     };
   }
+  
 }
 
 export const testService = new TestService();

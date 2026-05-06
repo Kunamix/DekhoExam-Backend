@@ -37,8 +37,8 @@ router.post(
   bulkUploadQuestions,
 );
 router.get("/:id", verifyToken, verifyAdmin, getQuestionById);
-router.put(
-  "/:id",
+router.post(
+  "/:id/update",
   verifyToken,
   verifyAdmin,
   imageUpload.fields([
